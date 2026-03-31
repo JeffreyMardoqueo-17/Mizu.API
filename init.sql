@@ -1,0 +1,56 @@
+-- Muzu Database Schema
+
+-- Tenants table
+CREATE TABLE IF NOT EXISTS tenants (
+    id UUID PRIMARY KEY,
+    nombre VARCHAR(255) NOT NULL,
+    direccion TEXT NOT NULL,
+    logo_url TEXT,
+    fecha_creacion TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- Users table
+CREATE TABLE IF NOT EXISTS usuarios (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    nombre VARCHAR(255) NOT NULL,
+    apellido VARCHAR(255) NOT NULL,
+    dui VARCHAR(20) NOT NULL,
+    correo VARCHAR(255) NOT NULL UNIQUE,
+    telefono VARCHAR(20) NOT NULL,
+    direccion TEXT NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    rol VARCHAR(50) NOT NULL DEFAULT 'Usuario',
+    fecha_creacion TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- Tenant configuration table
+CREATE TABLE IF NOT EXISTS tenant_configs (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id) UNIQUE,
+    moneda VARCHAR(10) NOT NULL DEFAULT 'USD',
+    limite_consumo_fijo DECIMAL(10,2) NOT NULL DEFAULT 35,
+    precio_consumo_fijo DECIMAL(10,2) NOT NULL DEFAULT 3,
+    limite_consumo_extra1 DECIMAL(10,2) NOT NULL DEFAULT 45,
+    porcentaje_extra1 DECIMAL(5,2) NOT NULL DEFAULT 0.15,
+    limite_consumo_extra2 DECIMAL(10,2) NOT NULL DEFAULT 55,
+    porcentaje_extra2 DECIMAL(5,2) NOT NULL DEFAULT 0.25,
+    multa_retraso DECIMAL(10,2) NOT NULL DEFAULT 2,
+    multa_no_asistir_reunion DECIMAL(10,2) NOT NULL DEFAULT 5,
+    multa_no_asistir_trabajo DECIMAL(10,2) NOT NULL DEFAULT 10
+);
+
+-- Fines/Rules table
+CREATE TABLE IF NOT EXISTS multas (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    nombre VARCHAR(255) NOT NULL,
+    monto DECIMAL(10,2) NOT NULL,
+    descripcion TEXT
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_usuarios_correo ON usuarios(correo);
+CREATE INDEX IF NOT EXISTS idx_usuarios_tenant ON usuarios(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_tenant_configs_tenant ON tenant_configs(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_multas_tenant ON multas(tenant_id);

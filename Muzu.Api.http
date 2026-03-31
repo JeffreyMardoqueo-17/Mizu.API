@@ -1,0 +1,6 @@
+@Muzu.Api_HostAddress = http://localhost:5177
+
+GET {{Muzu.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

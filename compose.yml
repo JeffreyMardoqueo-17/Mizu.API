@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: muzu-db
+    environment:
+      POSTGRES_DB: muzu
+      POSTGRES_USER: muzu_user
+      POSTGRES_PASSWORD: ${MUZU_DB_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U muzu_user -d muzu"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: muzu-api
+    environment:
+      MUZU_DB_CONNECTION: Host=postgres;Database=muzu;Username=muzu_user;Password=${MUZU_DB_PASSWORD}
+      MUZU_JWT_SECRET: ${MUZU_JWT_SECRET}
+      MUZU_JWT_ISSUER: MuzuApi
+      MUZU_JWT_AUDIENCE: MuzuApi
+    ports:
+      - "5000:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
