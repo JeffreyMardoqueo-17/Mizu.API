@@ -49,8 +49,20 @@ CREATE TABLE IF NOT EXISTS multas (
     descripcion TEXT
 );
 
+-- Refresh tokens table
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+    id UUID PRIMARY KEY,
+    usuario_id UUID NOT NULL REFERENCES usuarios(id),
+    token VARCHAR(255) NOT NULL UNIQUE,
+    expira TIMESTAMP NOT NULL,
+    revokeado BOOLEAN NOT NULL DEFAULT FALSE,
+    fecha_creacion TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_usuarios_correo ON usuarios(correo);
 CREATE INDEX IF NOT EXISTS idx_usuarios_tenant ON usuarios(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_tenant_configs_tenant ON tenant_configs(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_multas_tenant ON multas(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_usuario ON refresh_tokens(usuario_id);

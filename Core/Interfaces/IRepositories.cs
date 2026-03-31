@@ -15,6 +15,7 @@ namespace Muzu.Api.Core.Interfaces
     {
         Task<Usuario> CrearUsuarioAsync(Usuario usuario);
         Task<Usuario?> ObtenerPorCorreoAsync(string correo);
+        Task<Usuario?> ObtenerPorIdAsync(Guid id);
     }
 
     public interface ITenantConfigRepository
@@ -30,5 +31,14 @@ namespace Muzu.Api.Core.Interfaces
         Task<Multa?> ObtenerPorIdAsync(Guid id);
         Task<bool> ActualizarMultaAsync(Multa multa);
         Task<bool> EliminarMultaAsync(Guid id);
+    }
+
+    public interface IRefreshTokenRepository
+    {
+        Task<RefreshToken> CrearAsync(RefreshToken refreshToken);
+        Task<RefreshToken?> ObtenerPorTokenAsync(string token);
+        Task<bool> RevocarAsync(string token);
+        Task<bool> RevocarTodosDelUsuarioAsync(Guid usuarioId);
+        Task<IEnumerable<RefreshToken>> ObtenerPorUsuarioIdAsync(Guid usuarioId);
     }
 }

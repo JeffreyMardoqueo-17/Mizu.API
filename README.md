@@ -108,11 +108,37 @@ Content-Type: application/json
 **Respuesta:**
 ```json
 {
-  "tenantId": "uuid-del-tenant"
+  "tenantId": "uuid-del-tenant",
+  "usuarioId": "uuid-del-usuario",
+  "rol": "Administrador",
+  "refreshToken": "token-para-renovar-sesion"
 }
 ```
 
-**Nota:** El token JWT se establece como cookie HttpOnly automáticamente.
+**Nota:** El token JWT y refresh token se establecen como cookies HttpOnly automáticamente. El refresh token tiene validez de 24 horas.
+
+---
+
+#### Renovar Sesión (Refresh Token)
+```http
+POST /api/auth/refresh-token
+Content-Type: application/json
+
+{
+  "refreshToken": "token-recibido-en-login"
+}
+```
+
+**Respuesta:**
+```json
+{
+  "tenantId": "uuid-del-tenant",
+  "usuarioId": "uuid-del-usuario",
+  "rol": "Administrador"
+}
+```
+
+**Nota:** Este endpoint renueva el access token y genera un nuevo refresh token. El token anterior se invalida automáticamente.
 
 ---
 
@@ -170,6 +196,7 @@ Muzu.Api/
 - **usuarios**: Usuarios/clientes asociados a tenants
 - **tenant_configs**: Configuración de cada tenant (moneda, tarifas, multas)
 - **multas**: Catálogo de multas configurables por tenant
+- **refresh_tokens**: Tokens de renovación de sesión (24 horas de validez)
 
 ### Índices
 

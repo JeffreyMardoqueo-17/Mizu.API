@@ -16,6 +16,7 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddSingleton<Muzu.Api.Core.Interfaces.ITenantRepository, Muzu.Api.Core.Repositories.TenantRepository>();
 builder.Services.AddSingleton<Muzu.Api.Core.Interfaces.IUsuarioRepository, Muzu.Api.Core.Repositories.UsuarioRepository>();
 builder.Services.AddSingleton<Muzu.Api.Core.Interfaces.ITenantConfigRepository, Muzu.Api.Core.Repositories.TenantConfigRepository>();
+builder.Services.AddSingleton<Muzu.Api.Core.Interfaces.IRefreshTokenRepository, Muzu.Api.Core.Repositories.RefreshTokenRepository>();
 builder.Services.AddSingleton<Muzu.Api.Core.Services.IJwtService, Muzu.Api.Core.Services.JwtService>();
 builder.Services.AddSingleton<Muzu.Api.Core.Services.IAuthService, Muzu.Api.Core.Services.AuthService>();
 

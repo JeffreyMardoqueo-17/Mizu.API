@@ -25,5 +25,13 @@ namespace Muzu.Api.Core.Repositories
             var sql = "SELECT id, tenant_id, nombre, apellido, dui, correo, telefono, direccion, password_hash, rol, fecha_creacion FROM usuarios WHERE correo = @correo";
             return await conn.QueryFirstOrDefaultAsync<Usuario>(sql, new { correo });
         }
+
+        public async Task<Usuario?> ObtenerPorIdAsync(Guid id)
+        {
+            using var conn = DbConnectionFactory.Instance.CreateConnection();
+            DefaultTypeMap.MatchNamesWithUnderscores = true;
+            var sql = "SELECT id, tenant_id, nombre, apellido, dui, correo, telefono, direccion, password_hash, rol, fecha_creacion FROM usuarios WHERE id = @id";
+            return await conn.QueryFirstOrDefaultAsync<Usuario>(sql, new { id });
+        }
     }
 }

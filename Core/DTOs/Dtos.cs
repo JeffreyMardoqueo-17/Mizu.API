@@ -26,4 +26,16 @@ namespace Muzu.Api.Core.DTOs
         TenantRegistroDto Tenant,
         UsuarioRegistroDto Usuario
     );
+
+    public record RefreshTokenRequestDto(
+        string RefreshToken
+    );
+
+    public record LoginResponseDto(
+        string AccessToken,
+        string RefreshToken,
+        Guid TenantId,
+        Guid UsuarioId,
+        string Rol
+    );
 }
