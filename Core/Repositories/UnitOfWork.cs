@@ -1,71 +1,48 @@
-using System;
 using System.Data;
 using Muzu.Api.Core.Interfaces;
 
-namespace Muzu.Api.Core.Repositories
+namespace Muzu.Api.Core.Repositories;
+
+public sealed class UnitOfWork : IUnitOfWork
 {
-    public interface IUnitOfWork : IDisposable
+    private readonly IDbConnectionFactory _connectionFactory;
+
+    public UnitOfWork(IDbConnectionFactory connectionFactory)
     {
-        IDbConnection Connection { get; }
-        IDbTransaction Transaction { get; }
-        ITenantRepository TenantRepo { get; }
-        IUsuarioRepository UsuarioRepo { get; }
-        ITenantConfigRepository TenantConfigRepo { get; }
-        void Begin();
-        void Commit();
-        void Rollback();
+        _connectionFactory = connectionFactory;
     }
 
-    public class UnitOfWork : IUnitOfWork
+    public Task ExecuteInTransactionAsync(Func<IDbTransaction, Task> operation, CancellationToken cancellationToken = default)
     {
-        private readonly ITenantRepository _tenantRepo;
-        private readonly IUsuarioRepository _usuarioRepo;
-        private readonly ITenantConfigRepository _tenantConfigRepo;
-        private IDbConnection? _connection;
-        private IDbTransaction? _transaction;
+        return ExecuteInTransactionAsync<object?>(
+            async transaction =>
+            {
+                await operation(transaction);
+                return null;
+            },
+            cancellationToken);
+    }
 
-        public UnitOfWork()
+    public async Task<T> ExecuteInTransactionAsync<T>(Func<IDbTransaction, Task<T>> operation, CancellationToken cancellationToken = default)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        if (connection.State != ConnectionState.Open)
         {
-            _tenantRepo = new TenantRepository();
-            _usuarioRepo = new UsuarioRepository();
-            _tenantConfigRepo = new TenantConfigRepository();
+            connection.Open();
         }
 
-        public IDbConnection Connection => _connection ?? DbConnectionFactory.Instance.CreateConnection();
-        
-        public IDbTransaction Transaction => _transaction ?? throw new InvalidOperationException("Transaction not started. Call Begin() first.");
+        using var transaction = connection.BeginTransaction();
 
-        public ITenantRepository TenantRepo => _tenantRepo;
-        public IUsuarioRepository UsuarioRepo => _usuarioRepo;
-        public ITenantConfigRepository TenantConfigRepo => _tenantConfigRepo;
-
-        public void Begin()
+        try
         {
-            _connection = DbConnectionFactory.Instance.CreateConnection();
-            _connection.Open();
-            _transaction = _connection.BeginTransaction();
+            var result = await operation(transaction);
+            transaction.Commit();
+            return result;
         }
-
-        public void Commit()
+        catch
         {
-            _transaction?.Commit();
-            _transaction?.Dispose();
-            _transaction = null;
-            _connection?.Close();
-        }
-
-        public void Rollback()
-        {
-            _transaction?.Rollback();
-            _transaction?.Dispose();
-            _transaction = null;
-            _connection?.Close();
-        }
-
-        public void Dispose()
-        {
-            _transaction?.Dispose();
-            _connection?.Dispose();
+            transaction.Rollback();
+            throw;
         }
     }
 }

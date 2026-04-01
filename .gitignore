@@ -37,6 +37,8 @@ project.lock.json
 project.fragment.lock.json
 artifacts/
 
+.dotnet/
+.nuget/
 # NuGet
 *.nupkg
 # NuGet Symbols

@@ -1,60 +1,89 @@
 using Microsoft.AspNetCore.Mvc;
 using Muzu.Api.Core.DTOs;
-using Muzu.Api.Core.Services;
+using Muzu.Api.Core.Interfaces.Service;
 
-namespace Muzu.Api.Controllers
+namespace Muzu.Api.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public sealed class AuthController : ControllerBase
 {
-    [ApiController]
-    [Route("api/[controller]")]
-    public class AuthController : ControllerBase
+    private readonly IAuthService _authService;
+
+    public AuthController(IAuthService authService)
     {
-        private readonly IAuthService _authService;
+        _authService = authService;
+    }
 
-        public AuthController(IAuthService authService)
+    [HttpPost("register-tenant")]
+    public async Task<IActionResult> RegisterTenant([FromBody] TenantUsuarioRegistroDto request, CancellationToken cancellationToken)
+    {
+        try
         {
-            _authService = authService;
+            var result = await _authService.RegistrarPrimerTenantYUsuarioAsync(request, cancellationToken);
+            AppendAuthCookies(result.AccessToken, result.RefreshToken);
+            return Ok(result.Response);
         }
-
-        [HttpPost("register-tenant")]
-        public async Task<IActionResult> RegisterTenant([FromBody] TenantUsuarioRegistroDto request)
+        catch (InvalidOperationException exception)
         {
-            var (usuario, tenant, loginResponse) = await _authService.RegistrarPrimerTenantYUsuarioAsync(request.Tenant, request.Usuario);
-            Response.Cookies.Append("muzu_token", loginResponse.AccessToken, new CookieOptions { HttpOnly = true, Secure = true, SameSite = SameSiteMode.Strict });
-            Response.Cookies.Append("muzu_refresh_token", loginResponse.RefreshToken, new CookieOptions { HttpOnly = true, Secure = true, SameSite = SameSiteMode.Strict });
-            return Ok(new { usuario, tenant });
-        }
-
-        [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginDto loginDto)
-        {
-            var loginResponse = await _authService.LoginAsync(loginDto);
-            if (loginResponse == null) return Unauthorized();
-            
-            Response.Cookies.Append("muzu_token", loginResponse.AccessToken, new CookieOptions { HttpOnly = true, Secure = true, SameSite = SameSiteMode.Strict });
-            Response.Cookies.Append("muzu_refresh_token", loginResponse.RefreshToken, new CookieOptions { HttpOnly = true, Secure = true, SameSite = SameSiteMode.Strict });
-            
-            return Ok(new { 
-                tenantId = loginResponse.TenantId,
-                usuarioId = loginResponse.UsuarioId,
-                rol = loginResponse.Rol,
-                refreshToken = loginResponse.RefreshToken
+            return Conflict(new ProblemDetails
+            {
+                Title = "Conflicto de negocio",
+                Detail = exception.Message,
+                Status = StatusCodes.Status409Conflict
             });
         }
+    }
 
-        [HttpPost("refresh-token")]
-        public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequestDto request)
+    [HttpPost("login")]
+    public async Task<IActionResult> Login([FromBody] LoginDto request, CancellationToken cancellationToken)
+    {
+        var result = await _authService.LoginAsync(request, cancellationToken);
+        if (result is null)
         {
-            var loginResponse = await _authService.RefreshTokenAsync(request.RefreshToken);
-            if (loginResponse == null) return Unauthorized();
-            
-            Response.Cookies.Append("muzu_token", loginResponse.AccessToken, new CookieOptions { HttpOnly = true, Secure = true, SameSite = SameSiteMode.Strict });
-            Response.Cookies.Append("muzu_refresh_token", loginResponse.RefreshToken, new CookieOptions { HttpOnly = true, Secure = true, SameSite = SameSiteMode.Strict });
-            
-            return Ok(new { 
-                tenantId = loginResponse.TenantId,
-                usuarioId = loginResponse.UsuarioId,
-                rol = loginResponse.Rol
-            });
+            return Unauthorized();
         }
+
+        AppendAuthCookies(result.AccessToken, result.Response.RefreshToken);
+        return Ok(result.Response);
+    }
+
+    [HttpPost("refresh-token")]
+    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequestDto request, CancellationToken cancellationToken)
+    {
+        var result = await _authService.RefreshTokenAsync(request.RefreshToken, cancellationToken);
+        if (result is null)
+        {
+            return Unauthorized();
+        }
+
+        AppendAuthCookies(result.AccessToken, result.Response.RefreshToken);
+        return Ok(result.Response);
+    }
+
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout([FromBody] LogoutRequestDto request, CancellationToken cancellationToken)
+    {
+        await _authService.LogoutAsync(request.RefreshToken, cancellationToken);
+        Response.Cookies.Delete("muzu_token", BuildCookieOptions());
+        Response.Cookies.Delete("muzu_refresh_token", BuildCookieOptions());
+        return NoContent();
+    }
+
+    private void AppendAuthCookies(string accessToken, string refreshToken)
+    {
+        Response.Cookies.Append("muzu_token", accessToken, BuildCookieOptions());
+        Response.Cookies.Append("muzu_refresh_token", refreshToken, BuildCookieOptions());
+    }
+
+    private CookieOptions BuildCookieOptions()
+    {
+        return new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = Request.IsHttps,
+            SameSite = SameSiteMode.Strict,
+            IsEssential = true
+        };
     }
 }

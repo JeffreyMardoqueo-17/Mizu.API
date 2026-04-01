@@ -1,53 +1,102 @@
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
+using System.Data;
 using Dapper;
 using Muzu.Api.Core.Interfaces;
 using Muzu.Api.Core.Models;
 
-namespace Muzu.Api.Core.Repositories
+namespace Muzu.Api.Core.Repositories;
+
+public sealed class RefreshTokenRepository : RepositoryBase, IRefreshTokenRepository
 {
-    public class RefreshTokenRepository : IRefreshTokenRepository
+    public RefreshTokenRepository(IDbConnectionFactory connectionFactory) : base(connectionFactory)
     {
-        public async Task<RefreshToken> CrearAsync(RefreshToken refreshToken)
-        {
-            using var conn = DbConnectionFactory.Instance.CreateConnection();
-            var sql = @"INSERT INTO refresh_tokens (id, usuario_id, token, expira, revokeado, fecha_creacion)
-                        VALUES (@Id, @UsuarioId, @Token, @Expira, @Revocado, @FechaCreacion)";
-            await conn.ExecuteAsync(sql, refreshToken);
-            return refreshToken;
-        }
+    }
 
-        public async Task<RefreshToken?> ObtenerPorTokenAsync(string token)
-        {
-            using var conn = DbConnectionFactory.Instance.CreateConnection();
-            DefaultTypeMap.MatchNamesWithUnderscores = true;
-            var sql = "SELECT id, usuario_id, token, expira, revokeado, fecha_creacion FROM refresh_tokens WHERE token = @token";
-            return await conn.QueryFirstOrDefaultAsync<RefreshToken>(sql, new { token });
-        }
+    public Task<RefreshToken> CrearAsync(RefreshToken refreshToken, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           INSERT INTO refresh_tokens (id, usuario_id, token, expira, revokeado, fecha_creacion)
+                           VALUES (@Id, @UsuarioId, @Token, @Expira, @Revocado, @FechaCreacion)
+                           """;
 
-        public async Task<bool> RevocarAsync(string token)
-        {
-            using var conn = DbConnectionFactory.Instance.CreateConnection();
-            var sql = "UPDATE refresh_tokens SET revokeado = TRUE WHERE token = @token";
-            var rows = await conn.ExecuteAsync(sql, new { token });
-            return rows > 0;
-        }
+        return WithConnectionAsync(
+            transaction,
+            async connection =>
+            {
+                var command = new CommandDefinition(sql, refreshToken, transaction, cancellationToken: cancellationToken);
+                await connection.ExecuteAsync(command);
+                return refreshToken;
+            });
+    }
 
-        public async Task<bool> RevocarTodosDelUsuarioAsync(Guid usuarioId)
-        {
-            using var conn = DbConnectionFactory.Instance.CreateConnection();
-            var sql = "UPDATE refresh_tokens SET revokeado = TRUE WHERE usuario_id = @usuarioId";
-            var rows = await conn.ExecuteAsync(sql, new { usuarioId });
-            return rows > 0;
-        }
+    public Task<RefreshToken?> ObtenerPorTokenAsync(string token, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           SELECT id,
+                                  usuario_id,
+                                  token,
+                                  expira,
+                                  revokeado AS revocado,
+                                  fecha_creacion
+                           FROM refresh_tokens
+                           WHERE token = @token
+                           """;
 
-        public async Task<IEnumerable<RefreshToken>> ObtenerPorUsuarioIdAsync(Guid usuarioId)
-        {
-            using var conn = DbConnectionFactory.Instance.CreateConnection();
-            DefaultTypeMap.MatchNamesWithUnderscores = true;
-            var sql = "SELECT id, usuario_id, token, expira, revokeado, fecha_creacion FROM refresh_tokens WHERE usuario_id = @usuarioId";
-            return await conn.QueryAsync<RefreshToken>(sql, new { usuarioId });
-        }
+        return WithConnectionAsync(
+            transaction,
+            async connection =>
+            {
+                var command = new CommandDefinition(sql, new { token }, transaction, cancellationToken: cancellationToken);
+                return await connection.QueryFirstOrDefaultAsync<RefreshToken>(command);
+            });
+    }
+
+    public Task<bool> RevocarAsync(string token, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
+    {
+        const string sql = "UPDATE refresh_tokens SET revokeado = TRUE WHERE token = @token";
+
+        return WithConnectionAsync(
+            transaction,
+            async connection =>
+            {
+                var command = new CommandDefinition(sql, new { token }, transaction, cancellationToken: cancellationToken);
+                var affectedRows = await connection.ExecuteAsync(command);
+                return affectedRows > 0;
+            });
+    }
+
+    public Task<bool> RevocarTodosDelUsuarioAsync(Guid usuarioId, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
+    {
+        const string sql = "UPDATE refresh_tokens SET revokeado = TRUE WHERE usuario_id = @usuarioId";
+
+        return WithConnectionAsync(
+            transaction,
+            async connection =>
+            {
+                var command = new CommandDefinition(sql, new { usuarioId }, transaction, cancellationToken: cancellationToken);
+                var affectedRows = await connection.ExecuteAsync(command);
+                return affectedRows > 0;
+            });
+    }
+
+    public Task<IEnumerable<RefreshToken>> ObtenerPorUsuarioIdAsync(Guid usuarioId, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           SELECT id,
+                                  usuario_id,
+                                  token,
+                                  expira,
+                                  revokeado AS revocado,
+                                  fecha_creacion
+                           FROM refresh_tokens
+                           WHERE usuario_id = @usuarioId
+                           """;
+
+        return WithConnectionAsync(
+            transaction,
+            async connection =>
+            {
+                var command = new CommandDefinition(sql, new { usuarioId }, transaction, cancellationToken: cancellationToken);
+                return await connection.QueryAsync<RefreshToken>(command);
+            });
     }
 }

@@ -1,23 +1,24 @@
 using System.Data;
+using Microsoft.Extensions.Configuration;
+using Muzu.Api.Core.Interfaces;
 using Npgsql;
 
-namespace Muzu.Api.Core.Repositories
+namespace Muzu.Api.Core.Repositories;
+
+public sealed class DbConnectionFactory : IDbConnectionFactory
 {
-    public sealed class DbConnectionFactory
+    private readonly string _connectionString;
+
+    public DbConnectionFactory(IConfiguration configuration)
     {
-        private static readonly Lazy<DbConnectionFactory> _instance = new(() => new DbConnectionFactory());
-        private readonly string _connectionString;
+        _connectionString =
+            Environment.GetEnvironmentVariable("MUZU_DB_CONNECTION")
+            ?? configuration.GetConnectionString("DefaultConnection")
+            ?? throw new InvalidOperationException("No se encontro la conexion de base de datos.");
+    }
 
-        private DbConnectionFactory()
-        {
-            _connectionString = Environment.GetEnvironmentVariable("MUZU_DB_CONNECTION") ?? throw new Exception("No se encontró la variable de entorno MUZU_DB_CONNECTION");
-        }
-
-        public static DbConnectionFactory Instance => _instance.Value;
-
-        public IDbConnection CreateConnection()
-        {
-            return new NpgsqlConnection(_connectionString);
-        }
+    public IDbConnection CreateConnection()
+    {
+        return new NpgsqlConnection(_connectionString);
     }
 }
