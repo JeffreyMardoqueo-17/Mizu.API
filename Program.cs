@@ -73,6 +73,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 var app = builder.Build();
 
+await app.EnsureDatabaseSchemaAsync();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();

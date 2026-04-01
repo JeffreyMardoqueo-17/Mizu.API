@@ -32,13 +32,25 @@ CREATE TABLE IF NOT EXISTS tenant_configs (
     limite_consumo_fijo DECIMAL(10,2) NOT NULL DEFAULT 35,
     precio_consumo_fijo DECIMAL(10,2) NOT NULL DEFAULT 3,
     limite_consumo_extra1 DECIMAL(10,2) NOT NULL DEFAULT 45,
-    porcentaje_extra1 DECIMAL(5,2) NOT NULL DEFAULT 0.15,
+    cargo_extra1 DECIMAL(10,2) NOT NULL DEFAULT 0.50,
     limite_consumo_extra2 DECIMAL(10,2) NOT NULL DEFAULT 55,
-    porcentaje_extra2 DECIMAL(5,2) NOT NULL DEFAULT 0.25,
+    cargo_extra2 DECIMAL(10,2) NOT NULL DEFAULT 0.50,
+    limite_consumo_extra3 DECIMAL(10,2) NOT NULL DEFAULT 65,
+    cargo_extra3 DECIMAL(10,2) NOT NULL DEFAULT 0.50,
+    cargo_exceso_mayor DECIMAL(10,2) NOT NULL DEFAULT 1.00,
+    tramos_consumo_json JSONB NOT NULL DEFAULT '[]'::jsonb,
     multa_retraso DECIMAL(10,2) NOT NULL DEFAULT 2,
     multa_no_asistir_reunion DECIMAL(10,2) NOT NULL DEFAULT 5,
     multa_no_asistir_trabajo DECIMAL(10,2) NOT NULL DEFAULT 10
 );
+
+ALTER TABLE tenant_configs
+    ADD COLUMN IF NOT EXISTS cargo_extra1 DECIMAL(10,2) NOT NULL DEFAULT 0.50,
+    ADD COLUMN IF NOT EXISTS cargo_extra2 DECIMAL(10,2) NOT NULL DEFAULT 0.50,
+    ADD COLUMN IF NOT EXISTS limite_consumo_extra3 DECIMAL(10,2) NOT NULL DEFAULT 65,
+    ADD COLUMN IF NOT EXISTS cargo_extra3 DECIMAL(10,2) NOT NULL DEFAULT 0.50,
+    ADD COLUMN IF NOT EXISTS cargo_exceso_mayor DECIMAL(10,2) NOT NULL DEFAULT 1.00,
+    ADD COLUMN IF NOT EXISTS tramos_consumo_json JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 -- Fines/Rules table
 CREATE TABLE IF NOT EXISTS multas (

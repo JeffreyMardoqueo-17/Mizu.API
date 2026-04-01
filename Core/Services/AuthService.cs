@@ -6,11 +6,17 @@ using Muzu.Api.Core.Interfaces.Service;
 using Muzu.Api.Core.Mappers;
 using Muzu.Api.Core.Models;
 using Muzu.Api.Core.Rules;
+using System.Text.Json;
 
 namespace Muzu.Api.Core.Services;
 
 public sealed class AuthService : IAuthService
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     private readonly ITenantRepository _tenantRepository;
     private readonly IUsuarioRepository _usuarioRepository;
     private readonly ITenantConfigRepository _tenantConfigRepository;
@@ -54,10 +60,7 @@ public sealed class AuthService : IAuthService
                 var tenant = request.Tenant.ToEntity();
                 await _tenantRepository.CrearTenantAsync(tenant, transaction, cancellationToken);
 
-                var config = new TenantConfig
-                {
-                    TenantId = tenant.Id
-                };
+                var config = BuildInitialConfig(tenant.Id, request.ConfiguracionInicial);
                 await _tenantConfigRepository.CrearConfigAsync(config, transaction, cancellationToken);
 
                 var passwordHash = PasswordHasher.HashPassword(request.Usuario.Password);
@@ -152,5 +155,59 @@ public sealed class AuthService : IAuthService
         using var rng = RandomNumberGenerator.Create();
         rng.GetBytes(randomBytes);
         return Convert.ToBase64String(randomBytes);
+    }
+
+    private static TenantConfig BuildInitialConfig(Guid tenantId, InitialTenantConfigDto? initial)
+    {
+        var config = new TenantConfig
+        {
+            TenantId = tenantId,
+            Moneda = string.IsNullOrWhiteSpace(initial?.Moneda) ? "USD" : initial.Moneda.Trim().ToUpperInvariant(),
+            LimiteConsumoFijo = initial?.LimiteConsumoFijo ?? 35,
+            PrecioConsumoFijo = initial?.PrecioConsumoFijo ?? 3,
+            MultaRetraso = initial?.MultaRetraso ?? 2,
+            MultaNoAsistirReunion = initial?.MultaNoAsistirReunion ?? 5,
+            MultaNoAsistirTrabajo = initial?.MultaNoAsistirTrabajo ?? 10,
+        };
+
+        var tramos = NormalizeOrDefaultTramos(initial?.TramosConsumo, config.LimiteConsumoFijo);
+        config.TramosConsumoJson = JsonSerializer.Serialize(tramos, JsonOptions);
+
+        var tramosFijos = tramos
+            .Where(t => t.ModoCobro == "fijo_por_rango" && t.HastaM3.HasValue)
+            .OrderBy(t => t.DesdeM3)
+            .ToList();
+
+        var porM3 = tramos
+            .FirstOrDefault(t => t.ModoCobro == "por_m3");
+
+        config.LimiteConsumoExtra1 = tramosFijos.ElementAtOrDefault(0)?.HastaM3 ?? 45;
+        config.CargoExtra1 = tramosFijos.ElementAtOrDefault(0)?.Cargo ?? 0.50m;
+        config.LimiteConsumoExtra2 = tramosFijos.ElementAtOrDefault(1)?.HastaM3 ?? 55;
+        config.CargoExtra2 = tramosFijos.ElementAtOrDefault(1)?.Cargo ?? 0.50m;
+        config.LimiteConsumoExtra3 = tramosFijos.ElementAtOrDefault(2)?.HastaM3 ?? 65;
+        config.CargoExtra3 = tramosFijos.ElementAtOrDefault(2)?.Cargo ?? 0.50m;
+        config.CargoExcesoMayor = porM3?.Cargo ?? 1.00m;
+
+        return config;
+    }
+
+    private static IReadOnlyList<ConsumoTramoDto> NormalizeOrDefaultTramos(IReadOnlyList<ConsumoTramoDto>? tramos, decimal limiteConsumoFijo)
+    {
+        if (tramos is null || tramos.Count == 0)
+        {
+            return new List<ConsumoTramoDto>
+            {
+                new(limiteConsumoFijo, 45, 0.50m, "fijo_por_rango"),
+                new(45, 55, 0.50m, "fijo_por_rango"),
+                new(55, 65, 0.50m, "fijo_por_rango"),
+                new(65, null, 1.00m, "por_m3")
+            };
+        }
+
+        return tramos
+            .Select(t => new ConsumoTramoDto(t.DesdeM3, t.HastaM3, t.Cargo, t.ModoCobro.Trim().ToLowerInvariant()))
+            .OrderBy(t => t.DesdeM3)
+            .ToList();
     }
 }

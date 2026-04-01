@@ -1,4 +1,5 @@
 using System.Data;
+using Npgsql;
 using Muzu.Api.Core.Interfaces;
 
 namespace Muzu.Api.Core.Repositories;
@@ -20,11 +21,30 @@ public abstract class RepositoryBase
         }
 
         using var connection = _connectionFactory.CreateConnection();
-        if (connection.State != ConnectionState.Open)
-        {
-            connection.Open();
-        }
 
-        return await operation(connection);
+        try
+        {
+            if (connection.State != ConnectionState.Open)
+            {
+                connection.Open();
+            }
+
+            return await operation(connection);
+        }
+        catch (NpgsqlException)
+        {
+            using var fallback = _connectionFactory.CreateFallbackConnection();
+            if (fallback is null)
+            {
+                throw;
+            }
+
+            if (fallback.State != ConnectionState.Open)
+            {
+                fallback.Open();
+            }
+
+            return await operation(fallback);
+        }
     }
 }
