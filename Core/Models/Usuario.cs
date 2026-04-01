@@ -13,7 +13,7 @@ namespace Muzu.Api.Core.Models
         public string Telefono { get; set; } = string.Empty;
         public string Direccion { get; set; } = string.Empty;
         public string PasswordHash { get; set; } = string.Empty;
-        public string Rol { get; set; } = "Administrador";
+        public string Rol { get; set; } = "Socio";
         public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
     }
 }

@@ -14,9 +14,9 @@ public sealed class TenantConfigRepository : RepositoryBase, ITenantConfigReposi
     public Task<TenantConfig> CrearConfigAsync(TenantConfig config, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
     {
         const string sql = """
-                           INSERT INTO tenant_configs (id, tenant_id, moneda, limite_consumo_fijo, precio_consumo_fijo, limite_consumo_extra1, porcentaje_extra1, limite_consumo_extra2, porcentaje_extra2, multa_retraso, multa_no_asistir_reunion, multa_no_asistir_trabajo)
-                           VALUES (@Id, @TenantId, @Moneda, @LimiteConsumoFijo, @PrecioConsumoFijo, @LimiteConsumoExtra1, @PorcentajeExtra1, @LimiteConsumoExtra2, @PorcentajeExtra2, @MultaRetraso, @MultaNoAsistirReunion, @MultaNoAsistirTrabajo)
-                           """;
+                   INSERT INTO tenant_configs (id, tenant_id, moneda, limite_consumo_fijo, precio_consumo_fijo, limite_consumo_extra1, cargo_extra1, limite_consumo_extra2, cargo_extra2, limite_consumo_extra3, cargo_extra3, cargo_exceso_mayor, tramos_consumo_json, multa_retraso, multa_no_asistir_reunion, multa_no_asistir_trabajo)
+                   VALUES (@Id, @TenantId, @Moneda, @LimiteConsumoFijo, @PrecioConsumoFijo, @LimiteConsumoExtra1, @CargoExtra1, @LimiteConsumoExtra2, @CargoExtra2, @LimiteConsumoExtra3, @CargoExtra3, @CargoExcesoMayor, CAST(@TramosConsumoJson AS jsonb), @MultaRetraso, @MultaNoAsistirReunion, @MultaNoAsistirTrabajo)
+                   """;
 
         return WithConnectionAsync(
             transaction,
@@ -31,10 +31,10 @@ public sealed class TenantConfigRepository : RepositoryBase, ITenantConfigReposi
     public Task<TenantConfig?> ObtenerPorTenantIdAsync(Guid tenantId, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
     {
         const string sql = """
-                           SELECT id, tenant_id, moneda, limite_consumo_fijo, precio_consumo_fijo, limite_consumo_extra1, porcentaje_extra1, limite_consumo_extra2, porcentaje_extra2, multa_retraso, multa_no_asistir_reunion, multa_no_asistir_trabajo
-                           FROM tenant_configs
-                           WHERE tenant_id = @tenantId
-                           """;
+                   SELECT id, tenant_id, moneda, limite_consumo_fijo, precio_consumo_fijo, limite_consumo_extra1, cargo_extra1, limite_consumo_extra2, cargo_extra2, limite_consumo_extra3, cargo_extra3, cargo_exceso_mayor, tramos_consumo_json AS TramosConsumoJson, multa_retraso, multa_no_asistir_reunion, multa_no_asistir_trabajo
+                   FROM tenant_configs
+                   WHERE tenant_id = @tenantId
+                   """;
 
         return WithConnectionAsync(
             transaction,
@@ -53,9 +53,13 @@ public sealed class TenantConfigRepository : RepositoryBase, ITenantConfigReposi
                                limite_consumo_fijo = @LimiteConsumoFijo,
                                precio_consumo_fijo = @PrecioConsumoFijo,
                                limite_consumo_extra1 = @LimiteConsumoExtra1,
-                               porcentaje_extra1 = @PorcentajeExtra1,
+                               cargo_extra1 = @CargoExtra1,
                                limite_consumo_extra2 = @LimiteConsumoExtra2,
-                               porcentaje_extra2 = @PorcentajeExtra2,
+                               cargo_extra2 = @CargoExtra2,
+                               limite_consumo_extra3 = @LimiteConsumoExtra3,
+                               cargo_extra3 = @CargoExtra3,
+                               cargo_exceso_mayor = @CargoExcesoMayor,
+                               tramos_consumo_json = CAST(@TramosConsumoJson AS jsonb),
                                multa_retraso = @MultaRetraso,
                                multa_no_asistir_reunion = @MultaNoAsistirReunion,
                                multa_no_asistir_trabajo = @MultaNoAsistirTrabajo
