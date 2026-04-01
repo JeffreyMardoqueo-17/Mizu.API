@@ -69,6 +69,21 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 ValidAudience = jwtAudience,
                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret))
             };
+
+            options.Events = new JwtBearerEvents
+            {
+                OnMessageReceived = context =>
+                {
+                    if (string.IsNullOrWhiteSpace(context.Token)
+                        && context.Request.Cookies.TryGetValue("muzu_token", out var cookieToken)
+                        && !string.IsNullOrWhiteSpace(cookieToken))
+                    {
+                        context.Token = cookieToken;
+                    }
+
+                    return Task.CompletedTask;
+                }
+            };
         });
 
 var app = builder.Build();

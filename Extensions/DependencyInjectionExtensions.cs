@@ -13,6 +13,7 @@ public static class DependencyInjectionExtensions
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<ITenantRepository, TenantRepository>();
         services.AddScoped<IUsuarioRepository, UsuarioRepository>();
+        services.AddScoped<IRolRepository, RolRepository>();
         services.AddScoped<ITenantConfigRepository, TenantConfigRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddScoped<IMultaRepository, MultaRepository>();
@@ -25,6 +26,7 @@ public static class DependencyInjectionExtensions
         services.AddSingleton<IJwtService, JwtService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<ITenantConfigService, TenantConfigService>();
+        services.AddScoped<IUsuarioAdministracionService, UsuarioAdministracionService>();
 
         return services;
     }

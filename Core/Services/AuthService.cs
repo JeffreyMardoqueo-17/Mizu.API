@@ -21,6 +21,7 @@ public sealed class AuthService : IAuthService
     private readonly IUsuarioRepository _usuarioRepository;
     private readonly ITenantConfigRepository _tenantConfigRepository;
     private readonly IRefreshTokenRepository _refreshTokenRepository;
+    private readonly IRolRepository _rolRepository;
     private readonly IJwtService _jwtService;
     private readonly IUnitOfWork _unitOfWork;
 
@@ -29,6 +30,7 @@ public sealed class AuthService : IAuthService
         IUsuarioRepository usuarioRepository,
         ITenantConfigRepository tenantConfigRepository,
         IRefreshTokenRepository refreshTokenRepository,
+        IRolRepository rolRepository,
         IJwtService jwtService,
         IUnitOfWork unitOfWork)
     {
@@ -36,6 +38,7 @@ public sealed class AuthService : IAuthService
         _usuarioRepository = usuarioRepository;
         _tenantConfigRepository = tenantConfigRepository;
         _refreshTokenRepository = refreshTokenRepository;
+        _rolRepository = rolRepository;
         _jwtService = jwtService;
         _unitOfWork = unitOfWork;
     }
@@ -64,8 +67,12 @@ public sealed class AuthService : IAuthService
                 await _tenantConfigRepository.CrearConfigAsync(config, transaction, cancellationToken);
 
                 var passwordHash = PasswordHasher.HashPassword(request.Usuario.Password);
-                var usuario = request.Usuario.ToEntity(tenant.Id, passwordHash);
+                var rolAdministrador = await _rolRepository.ObtenerPorNombreAsync(SystemRoles.Administrador, transaction, cancellationToken)
+                    ?? throw new InvalidOperationException("No se encontro el rol Administrador en el catalogo de roles.");
+
+                var usuario = request.Usuario.ToEntity(tenant.Id, passwordHash, rolAdministrador.Nombre);
                 await _usuarioRepository.CrearUsuarioAsync(usuario, transaction, cancellationToken);
+                await _usuarioRepository.AsignarRolAsync(usuario.Id, rolAdministrador.Id, rolAdministrador.Nombre, transaction, cancellationToken);
 
                 var authResult = await GenerarAutenticacionAsync(usuario, transaction, cancellationToken);
                 var configDto = config.ToResponseDto();

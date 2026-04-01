@@ -20,7 +20,7 @@ public static class DtoMappingExtensions
         };
     }
 
-    public static Usuario ToEntity(this UsuarioRegistroDto dto, Guid tenantId, string passwordHash)
+    public static Usuario ToEntity(this UsuarioRegistroDto dto, Guid tenantId, string passwordHash, string rol)
     {
         return new Usuario
         {
@@ -32,7 +32,7 @@ public static class DtoMappingExtensions
             Telefono = dto.Telefono.Trim(),
             Direccion = dto.Direccion.Trim(),
             PasswordHash = passwordHash,
-            Rol = "Administrador"
+            Rol = rol
         };
     }
 

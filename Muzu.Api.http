@@ -1,6 +1,40 @@
 @Muzu.Api_HostAddress = http://localhost:5177
+@jwt = REEMPLAZAR_TOKEN
+@usuarioId = 00000000-0000-0000-0000-000000000000
 
 GET {{Muzu.Api_HostAddress}}/weatherforecast/
 Accept: application/json
+
+###
+
+POST {{Muzu.Api_HostAddress}}/api/usuarios
+Authorization: Bearer {{jwt}}
+Content-Type: application/json
+
+{
+	"nombre": "Ana",
+	"apellido": "Lopez",
+	"dui": "98765432-1",
+	"correo": "ana.lopez@losrobles.com",
+	"telefono": "7000-2222",
+	"direccion": "Residencial Los Robles",
+	"password": "AnaSegura123",
+	"rol": "Socio"
+}
+
+###
+
+PATCH {{Muzu.Api_HostAddress}}/api/usuarios/{{usuarioId}}/rol
+Authorization: Bearer {{jwt}}
+Content-Type: application/json
+
+{
+	"rol": "Tesorero"
+}
+
+###
+
+GET {{Muzu.Api_HostAddress}}/api/usuarios?page=1&pageSize=20&search=jeffrey
+Authorization: Bearer {{jwt}}
 
 ###

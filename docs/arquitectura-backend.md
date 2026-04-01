@@ -359,3 +359,30 @@ Lo importante para mí no es solo que compile, sino que ahora ya tengo una base 
 - con contratos explícitos,
 - con menos acoplamiento,
 - y con mejor posibilidad de escalar el proyecto sin convertirlo en un bloque difícil de mantener.
+
+## Actualizacion: modulo usuarios, roles y permisos
+
+Se agrego una normalizacion adicional para control de acceso:
+
+- `roles`
+- `permisos`
+- `rol_permisos`
+- `usuario_roles`
+
+Y para nuevos requerimientos funcionales:
+
+- `docs` para guardar DUI u otros documentos por usuario,
+- `directiva` para periodos de junta directiva,
+- `directiva_miembros` para asociar usuarios y cargos por periodo.
+
+Con esto, los roles dejan de depender de un campo libre en `usuarios` y pasan a un esquema relacional que permite:
+
+- controlar permisos por rol,
+- cambiar roles sin romper historial,
+- proteger reglas de negocio como no permitir auto-democion del ultimo `Administrador` o `Presidente`.
+
+El endpoint nuevo de gestion quedo en `UsuariosController` y mantiene la misma filosofia de arquitectura:
+
+- `Controller -> IUsuarioAdministracionService`
+- `Service -> IUsuarioRepository + IRolRepository + IUnitOfWork`
+- `Repository -> IDbConnectionFactory`
