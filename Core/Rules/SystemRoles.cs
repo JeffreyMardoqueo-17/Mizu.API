@@ -4,7 +4,9 @@ public static class SystemRoles
 {
     public const string Administrador = "Administrador";
     public const string Presidente = "Presidente";
+    public const string Secretario = "Secretario";
     public const string Tesorero = "Tesorero";
+    public const string Vocal = "Vocal";
     public const string Contador = "Contador";
     public const string Socio = "Socio";
 

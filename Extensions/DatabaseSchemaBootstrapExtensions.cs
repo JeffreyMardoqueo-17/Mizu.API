@@ -52,6 +52,15 @@ public static class DatabaseSchemaBootstrapExtensions
                 ON usuario_roles(usuario_id)
                 WHERE activo = TRUE;
 
+            ALTER TABLE IF EXISTS usuarios
+                ADD COLUMN IF NOT EXISTS activo BOOLEAN NOT NULL DEFAULT TRUE,
+                ADD COLUMN IF NOT EXISTS eliminado BOOLEAN NOT NULL DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS fecha_actualizacion TIMESTAMP,
+                ADD COLUMN IF NOT EXISTS fecha_eliminacion TIMESTAMP,
+                ADD COLUMN IF NOT EXISTS temp_password_generated_at TIMESTAMP,
+                ADD COLUMN IF NOT EXISTS temp_password_viewed_at TIMESTAMP;
+
             CREATE TABLE IF NOT EXISTS docs (
                 id UUID PRIMARY KEY,
                 tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -65,26 +74,62 @@ public static class DatabaseSchemaBootstrapExtensions
             CREATE TABLE IF NOT EXISTS directiva (
                 id UUID PRIMARY KEY,
                 tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                nombre VARCHAR(120) NOT NULL DEFAULT 'Directiva',
+                slug VARCHAR(150) NOT NULL DEFAULT 'directiva',
+                fecha_inicio DATE NOT NULL DEFAULT CURRENT_DATE,
+                fecha_fin DATE NOT NULL DEFAULT (CURRENT_DATE + INTERVAL '1 year')::date,
+                estado VARCHAR(20) NOT NULL DEFAULT 'Borrador',
+                administrador_responsable_id UUID,
                 periodo_inicio DATE NOT NULL,
                 periodo_fin DATE NOT NULL,
                 fecha_creacion TIMESTAMP NOT NULL DEFAULT NOW(),
                 CONSTRAINT ck_directiva_periodo CHECK (periodo_fin > periodo_inicio)
             );
 
+            ALTER TABLE IF EXISTS directiva
+                ADD COLUMN IF NOT EXISTS nombre VARCHAR(120) NOT NULL DEFAULT 'Directiva',
+                ADD COLUMN IF NOT EXISTS slug VARCHAR(150) NOT NULL DEFAULT 'directiva',
+                ADD COLUMN IF NOT EXISTS fecha_inicio DATE,
+                ADD COLUMN IF NOT EXISTS fecha_fin DATE,
+                ADD COLUMN IF NOT EXISTS estado VARCHAR(20) NOT NULL DEFAULT 'Borrador',
+                ADD COLUMN IF NOT EXISTS administrador_responsable_id UUID,
+                ADD COLUMN IF NOT EXISTS fecha_actualizacion TIMESTAMP,
+                ADD COLUMN IF NOT EXISTS fecha_transicion TIMESTAMP;
+
+            UPDATE directiva
+            SET fecha_inicio = COALESCE(fecha_inicio, periodo_inicio),
+                fecha_fin = COALESCE(fecha_fin, periodo_fin)
+            WHERE fecha_inicio IS NULL OR fecha_fin IS NULL;
+
             CREATE TABLE IF NOT EXISTS directiva_miembros (
                 id UUID PRIMARY KEY,
                 directiva_id UUID NOT NULL REFERENCES directiva(id) ON DELETE CASCADE,
                 usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
                 rol_id UUID NOT NULL REFERENCES roles(id) ON DELETE RESTRICT,
+                cargo VARCHAR(50),
                 fecha_creacion TIMESTAMP NOT NULL DEFAULT NOW(),
                 UNIQUE (directiva_id, usuario_id)
+            );
+
+            ALTER TABLE IF EXISTS directiva_miembros
+                ADD COLUMN IF NOT EXISTS cargo VARCHAR(50);
+
+            CREATE TABLE IF NOT EXISTS directiva_historial (
+                id UUID PRIMARY KEY,
+                board_id UUID NOT NULL REFERENCES directiva(id) ON DELETE CASCADE,
+                evento VARCHAR(100) NOT NULL,
+                descripcion TEXT NOT NULL,
+                actor_usuario_id UUID,
+                fecha_creacion TIMESTAMP NOT NULL DEFAULT NOW()
             );
 
             CREATE INDEX IF NOT EXISTS idx_docs_tenant ON docs(tenant_id);
             CREATE INDEX IF NOT EXISTS idx_docs_usuario ON docs(usuario_id);
             CREATE INDEX IF NOT EXISTS idx_directiva_tenant ON directiva(tenant_id);
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_directiva_tenant_activa ON directiva(tenant_id) WHERE estado = 'Activa';
             CREATE INDEX IF NOT EXISTS idx_directiva_miembros_directiva ON directiva_miembros(directiva_id);
             CREATE INDEX IF NOT EXISTS idx_directiva_miembros_usuario ON directiva_miembros(usuario_id);
+            CREATE INDEX IF NOT EXISTS idx_directiva_historial_board ON directiva_historial(board_id);
 
             INSERT INTO roles (id, nombre, descripcion, es_sistema)
             VALUES
@@ -92,7 +137,9 @@ public static class DatabaseSchemaBootstrapExtensions
                 ('00000000-0000-0000-0000-000000000002', 'Presidente', 'Gestion operativa y supervision general.', TRUE),
                 ('00000000-0000-0000-0000-000000000003', 'Tesorero', 'Gestion de cobros, ingresos y reportes de caja.', TRUE),
                 ('00000000-0000-0000-0000-000000000004', 'Contador', 'Revision contable y conciliacion.', TRUE),
-                ('00000000-0000-0000-0000-000000000005', 'Socio', 'Acceso de solo lectura a su informacion.', TRUE)
+                ('00000000-0000-0000-0000-000000000005', 'Socio', 'Acceso de solo lectura a su informacion.', TRUE),
+                ('00000000-0000-0000-0000-000000000006', 'Secretario', 'Gestion documental de directiva.', TRUE),
+                ('00000000-0000-0000-0000-000000000007', 'Vocal', 'Participacion operativa en directiva.', TRUE)
             ON CONFLICT (nombre) DO NOTHING;
 
             INSERT INTO permisos (id, codigo, descripcion)

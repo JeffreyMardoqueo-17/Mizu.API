@@ -18,19 +18,16 @@ builder.Services.AddCors(options =>
     var allowedOrigins = builder.Configuration
         .GetSection("Frontend:Origins")
         .Get<string[]>()
-        ?? new[]
-        {
-            "http://localhost:3000",
-            "http://localhost:3001",
-            "http://192.168.1.206:3000",
-            "http://192.168.1.206:3001"
-        };
+        ?? Array.Empty<string>();
 
     options.AddPolicy(
         "AllowFrontend",
         policy =>
         {
-            policy.WithOrigins(allowedOrigins)
+            policy.SetIsOriginAllowed(origin =>
+                origin.StartsWith("http://localhost:", StringComparison.OrdinalIgnoreCase)
+                || origin.StartsWith("http://127.0.0.1:", StringComparison.OrdinalIgnoreCase)
+                || allowedOrigins.Any(o => string.Equals(o.TrimEnd('/'), origin.TrimEnd('/'), StringComparison.OrdinalIgnoreCase)))
                 .AllowAnyHeader()
                 .AllowAnyMethod()
                 .AllowCredentials();
@@ -88,6 +85,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 var app = builder.Build();
 
+var runningInContainer = string.Equals(
+    Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"),
+    "true",
+    StringComparison.OrdinalIgnoreCase);
+
 await app.EnsureDatabaseSchemaAsync();
 
 if (app.Environment.IsDevelopment())
@@ -96,8 +98,13 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
 app.UseCors("AllowFrontend");
+
+if (!runningInContainer)
+{
+    app.UseHttpsRedirection();
+}
+
 app.UseAuthentication();
 app.UseAuthorization();
 

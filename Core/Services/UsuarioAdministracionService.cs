@@ -13,15 +13,18 @@ public sealed class UsuarioAdministracionService : IUsuarioAdministracionService
 
     private readonly IUsuarioRepository _usuarioRepository;
     private readonly IRolRepository _rolRepository;
+    private readonly IRoleMutationGuard _roleMutationGuard;
     private readonly IUnitOfWork _unitOfWork;
 
     public UsuarioAdministracionService(
         IUsuarioRepository usuarioRepository,
         IRolRepository rolRepository,
+        IRoleMutationGuard roleMutationGuard,
         IUnitOfWork unitOfWork)
     {
         _usuarioRepository = usuarioRepository;
         _rolRepository = rolRepository;
+        _roleMutationGuard = roleMutationGuard;
         _unitOfWork = unitOfWork;
     }
 
@@ -69,6 +72,7 @@ public sealed class UsuarioAdministracionService : IUsuarioAdministracionService
     public async Task<UsuarioGestionResponseDto?> ActualizarRolAsync(Guid usuarioId, ActualizarRolUsuarioDto request, Guid actorUsuarioId, Guid actorTenantId, CancellationToken cancellationToken = default)
     {
         await EnsureActorCanManageUsersAsync(actorUsuarioId, actorTenantId, cancellationToken);
+        EnsureRoleMutationNotBlocked(actorTenantId);
 
         var rolNuevo = await _rolRepository.ObtenerPorNombreAsync(request.Rol, cancellationToken: cancellationToken);
         if (rolNuevo is null)
@@ -204,5 +208,13 @@ public sealed class UsuarioAdministracionService : IUsuarioAdministracionService
             usuario.Rol,
             permisos,
             usuario.FechaCreacion);
+    }
+
+    private void EnsureRoleMutationNotBlocked(Guid tenantId)
+    {
+        if (_roleMutationGuard.IsRoleMutationBlocked(tenantId))
+        {
+            throw new InvalidOperationException("No se permiten cambios de roles mientras se procesa una activacion de directiva.");
+        }
     }
 }

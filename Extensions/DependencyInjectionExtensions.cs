@@ -14,6 +14,7 @@ public static class DependencyInjectionExtensions
         services.AddScoped<ITenantRepository, TenantRepository>();
         services.AddScoped<IUsuarioRepository, UsuarioRepository>();
         services.AddScoped<IRolRepository, RolRepository>();
+        services.AddScoped<IBoardRepository, BoardRepository>();
         services.AddScoped<ITenantConfigRepository, TenantConfigRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddScoped<IMultaRepository, MultaRepository>();
@@ -23,10 +24,16 @@ public static class DependencyInjectionExtensions
 
     public static IServiceCollection AddApplicationServices(this IServiceCollection services)
     {
+        services.AddSingleton<IRoleMutationGuard, RoleMutationGuard>();
         services.AddSingleton<IJwtService, JwtService>();
+        services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IAuthSecurityService, AuthSecurityService>();
         services.AddScoped<ITenantConfigService, TenantConfigService>();
         services.AddScoped<IUsuarioAdministracionService, UsuarioAdministracionService>();
+        services.AddScoped<IUsersService, UsersService>();
+        services.AddScoped<IBoardsService, BoardsService>();
+        services.AddScoped<IRoleManagementService, RoleManagementService>();
 
         return services;
     }

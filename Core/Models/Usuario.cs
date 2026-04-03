@@ -14,6 +14,13 @@ namespace Muzu.Api.Core.Models
         public string Direccion { get; set; } = string.Empty;
         public string PasswordHash { get; set; } = string.Empty;
         public string Rol { get; set; } = "Socio";
+        public bool Activo { get; set; } = true;
+        public bool Eliminado { get; set; }
+        public bool MustChangePassword { get; set; }
         public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
+        public DateTime? FechaActualizacion { get; set; }
+        public DateTime? FechaEliminacion { get; set; }
+        public DateTime? TempPasswordGeneratedAt { get; set; }
+        public DateTime? TempPasswordViewedAt { get; set; }
     }
 }

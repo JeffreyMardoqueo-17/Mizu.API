@@ -1,5 +1,4 @@
 using System.Data;
-using Microsoft.Extensions.Configuration;
 using Muzu.Api.Core.Interfaces;
 using Npgsql;
 
@@ -10,12 +9,11 @@ public sealed class DbConnectionFactory : IDbConnectionFactory
     private readonly string _connectionString;
     private readonly string? _fallbackConnectionString;
 
-    public DbConnectionFactory(IConfiguration configuration)
+    public DbConnectionFactory()
     {
         var rawConnectionString =
             Environment.GetEnvironmentVariable("MUZU_DB_CONNECTION")
-            ?? configuration.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("No se encontro la conexion de base de datos.");
+            ?? throw new InvalidOperationException("No se encontro MUZU_DB_CONNECTION.");
 
         var normalized = rawConnectionString.Trim().Trim('"', '\'');
         var builder = new NpgsqlConnectionStringBuilder(normalized);

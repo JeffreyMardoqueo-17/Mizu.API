@@ -16,6 +16,11 @@ Crea un archivo `.env` en la raíz del proyecto:
 ```env
 MUZU_DB_PASSWORD=muzu_secure_2024
 MUZU_JWT_SECRET=MuzuApiSecretKey12345678901234567890
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_SENDER=your_email@gmail.com
+EMAIL_PASSWORD=your_app_password
+MUZU_FRONTEND_URL=http://localhost:3000
 ```
 
 > **Nota**: La clave JWT debe tener al menos 32 caracteres.

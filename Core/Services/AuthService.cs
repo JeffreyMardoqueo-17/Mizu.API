@@ -152,8 +152,11 @@ public sealed class AuthService : IAuthService
             new LoginResponseDto(
                 usuario.TenantId,
                 usuario.Id,
+                usuario.Nombre,
+                usuario.Apellido,
                 usuario.Rol,
-                refreshToken.Token));
+                refreshToken.Token,
+                usuario.MustChangePassword));
     }
 
     private static string GenerarRefreshToken()

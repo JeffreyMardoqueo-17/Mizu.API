@@ -38,3 +38,69 @@ GET {{Muzu.Api_HostAddress}}/api/usuarios?page=1&pageSize=20&search=jeffrey
 Authorization: Bearer {{jwt}}
 
 ###
+
+GET {{Muzu.Api_HostAddress}}/api/users?page=1&pageSize=20&dui=&nombre=&correo=&estado=true
+
+###
+
+GET {{Muzu.Api_HostAddress}}/api/users/{{usuarioId}}
+
+###
+
+POST {{Muzu.Api_HostAddress}}/api/users
+Content-Type: application/json
+
+{
+	"nombre": "Nuevo",
+	"apellido": "Socio",
+	"dui": "12345678-9",
+	"correo": "nuevo.socio@mizu.app",
+	"telefono": "7000-9999",
+	"direccion": "Direccion de prueba"
+}
+
+###
+
+PUT {{Muzu.Api_HostAddress}}/api/users/{{usuarioId}}
+Content-Type: application/json
+
+{
+	"nombre": "Nuevo",
+	"apellido": "Actualizado",
+	"dui": "12345678-9",
+	"correo": "nuevo.socio@mizu.app",
+	"telefono": "7000-9999",
+	"direccion": "Direccion actualizada",
+	"activo": true
+}
+
+###
+
+DELETE {{Muzu.Api_HostAddress}}/api/users/{{usuarioId}}
+
+###
+
+GET {{Muzu.Api_HostAddress}}/api/boards
+
+###
+
+POST {{Muzu.Api_HostAddress}}/api/boards
+Content-Type: application/json
+
+{
+	"nombre": "Directiva 2028-2029",
+	"fechaInicio": "2028-01-01",
+	"fechaFin": "2029-01-01",
+	"administradorResponsableId": "{{usuarioId}}"
+}
+
+###
+
+POST {{Muzu.Api_HostAddress}}/api/auth/change-temporary-password
+Content-Type: application/json
+
+{
+	"newPassword": "NuevaSegura123#"
+}
+
+###

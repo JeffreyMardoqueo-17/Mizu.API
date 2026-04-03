@@ -29,6 +29,11 @@ services:
       MUZU_JWT_SECRET: ${MUZU_JWT_SECRET}
       MUZU_JWT_ISSUER: MuzuApi
       MUZU_JWT_AUDIENCE: MuzuApi
+      EMAIL_HOST: ${EMAIL_HOST}
+      EMAIL_PORT: ${EMAIL_PORT}
+      EMAIL_SENDER: ${EMAIL_SENDER}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD}
+      MUZU_FRONTEND_URL: ${MUZU_FRONTEND_URL}
     ports:
       - "5000:8080"
     depends_on:

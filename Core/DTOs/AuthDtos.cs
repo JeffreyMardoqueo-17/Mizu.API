@@ -49,8 +49,11 @@ public sealed record LogoutRequestDto(
 public sealed record LoginResponseDto(
     Guid TenantId,
     Guid UsuarioId,
+    string Nombre,
+    string Apellido,
     string Rol,
-    string RefreshToken
+    string RefreshToken,
+    bool MustChangePassword
 );
 
 public sealed record UsuarioResumenDto(
