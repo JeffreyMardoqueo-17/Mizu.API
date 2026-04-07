@@ -13,6 +13,7 @@ public interface IBoardRepository
     Task<IReadOnlyList<BoardMember>> GetMembersAsync(Guid boardId, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);
     Task AddMemberAsync(BoardMember member, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);
     Task<Board?> GetActiveBoardAsync(Guid tenantId, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);
+    Task<bool> IsUserInActiveBoardAsync(Guid tenantId, Guid usuarioId, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);
     Task SetBoardStateAsync(Guid boardId, string estado, DateTime? fechaTransicion, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<BoardHistoryItem>> GetHistoryAsync(Guid boardId, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);
     Task AddHistoryAsync(BoardHistoryItem historyItem, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);

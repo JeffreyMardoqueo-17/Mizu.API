@@ -300,3 +300,32 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_directiva_tenant_activa
 CREATE INDEX IF NOT EXISTS idx_directiva_miembros_directiva ON directiva_miembros(directiva_id);
 CREATE INDEX IF NOT EXISTS idx_directiva_miembros_usuario ON directiva_miembros(usuario_id);
 CREATE INDEX IF NOT EXISTS idx_directiva_historial_board ON directiva_historial(board_id);
+
+-- Partner Documents Table
+-- Almacena documentos de identidad (DUI, Pasaporte, etc.) de socios
+-- Máximo 2 documentos por usuario para verificación de identidad
+CREATE TABLE IF NOT EXISTS partner_documents (
+    id UUID PRIMARY KEY,
+    usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    document_url TEXT NOT NULL,
+    cloudinary_public_id VARCHAR(500) NOT NULL,
+    document_type VARCHAR(50) NOT NULL DEFAULT 'DUI',
+    file_name VARCHAR(500) NOT NULL,
+    file_size_bytes BIGINT NOT NULL,
+    display_order SMALLINT NOT NULL CHECK (display_order >= 1 AND display_order <= 2),
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
+    fecha_creacion TIMESTAMP NOT NULL DEFAULT NOW(),
+    fecha_actualizacion TIMESTAMP,
+    fecha_eliminacion TIMESTAMP,
+    eliminado BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+-- Índices para partner_documents
+CREATE UNIQUE INDEX IF NOT EXISTS ux_partner_documents_usuario_display_order_activo
+    ON partner_documents(usuario_id, display_order)
+    WHERE eliminado = FALSE;
+CREATE INDEX IF NOT EXISTS idx_partner_documents_usuario ON partner_documents(usuario_id) WHERE NOT eliminado;
+CREATE INDEX IF NOT EXISTS idx_partner_documents_tenant ON partner_documents(tenant_id) WHERE NOT eliminado;
+CREATE INDEX IF NOT EXISTS idx_partner_documents_cloudinary_public_id ON partner_documents(cloudinary_public_id);
+CREATE INDEX IF NOT EXISTS idx_partner_documents_fecha_creacion ON partner_documents(fecha_creacion DESC);

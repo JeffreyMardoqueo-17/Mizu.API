@@ -29,6 +29,42 @@ public sealed class RolRepository : RepositoryBase, IRolRepository
             });
     }
 
+    public Task<RoleDto?> ObtenerPorIdAsync(Guid rolId, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           SELECT r.id,
+                                  r.nombre,
+                                  r.descripcion,
+                                  r.es_sistema,
+                                  COALESCE(STRING_AGG(p.codigo, ','), '') AS permisos
+                           FROM roles r
+                           LEFT JOIN rol_permisos rp ON rp.rol_id = r.id
+                           LEFT JOIN permisos p ON p.id = rp.permiso_id
+                           WHERE r.id = @rolId
+                           GROUP BY r.id, r.nombre, r.descripcion, r.es_sistema
+                           """;
+
+        return WithConnectionAsync(
+            transaction,
+            async connection =>
+            {
+                var command = new CommandDefinition(sql, new { rolId }, transaction, cancellationToken: cancellationToken);
+                var row = await connection.QueryFirstOrDefaultAsync<(Guid id, string nombre, string? descripcion, bool es_sistema, string permisos)?>(command);
+                if (!row.HasValue)
+                {
+                    return null;
+                }
+
+                var r = row.Value;
+                return new RoleDto(
+                    r.id,
+                    r.nombre,
+                    r.descripcion,
+                    r.es_sistema,
+                    string.IsNullOrWhiteSpace(r.permisos) ? new() : r.permisos.Split(',').ToList());
+            });
+    }
+
     public Task<IReadOnlyList<string>> ObtenerPermisosPorRolIdAsync(Guid rolId, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
     {
         const string sql = """
@@ -144,6 +180,83 @@ public sealed class RolRepository : RepositoryBase, IRolRepository
                 var command = new CommandDefinition(sql, parameters, transaction, cancellationToken: cancellationToken);
                 await connection.ExecuteAsync(command);
                 return 0;
+            });
+    }
+
+    public Task<RoleDto> CrearAsync(string nombre, string? descripcion, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           INSERT INTO roles (id, nombre, descripcion, es_sistema, fecha_creacion)
+                           VALUES (@Id, @Nombre, @Descripcion, FALSE, NOW())
+                           """;
+
+        return WithConnectionAsync(
+            transaction,
+            async connection =>
+            {
+                var rol = new RoleDto(Guid.NewGuid(), nombre, descripcion, false, new());
+                var command = new CommandDefinition(sql, new { rol.Id, rol.Nombre, rol.Descripcion }, transaction, cancellationToken: cancellationToken);
+                await connection.ExecuteAsync(command);
+                return rol;
+            });
+    }
+
+    public async Task<RoleDto?> ActualizarAsync(Guid rolId, string nombre, string? descripcion, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           UPDATE roles
+                           SET nombre = @nombre,
+                               descripcion = @descripcion
+                           WHERE id = @rolId
+                             AND es_sistema = FALSE
+                           """;
+
+        await WithConnectionAsync(
+            transaction,
+            async connection =>
+            {
+                var command = new CommandDefinition(sql, new { rolId, nombre, descripcion }, transaction, cancellationToken: cancellationToken);
+                await connection.ExecuteAsync(command);
+                return 0;
+            });
+
+        return await ObtenerPorIdAsync(rolId, transaction, cancellationToken);
+    }
+
+    public Task<int> ContarAsignacionesActivasAsync(Guid rolId, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           SELECT COUNT(1)
+                           FROM usuario_roles ur
+                           WHERE ur.rol_id = @rolId
+                             AND ur.activo = TRUE
+                             AND (ur.fecha_fin IS NULL OR ur.fecha_fin >= CURRENT_DATE)
+                           """;
+
+        return WithConnectionAsync(
+            transaction,
+            async connection =>
+            {
+                var command = new CommandDefinition(sql, new { rolId }, transaction, cancellationToken: cancellationToken);
+                return await connection.ExecuteScalarAsync<int>(command);
+            });
+    }
+
+    public Task<bool> EliminarAsync(Guid rolId, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           DELETE FROM roles
+                           WHERE id = @rolId
+                             AND es_sistema = FALSE
+                           """;
+
+        return WithConnectionAsync(
+            transaction,
+            async connection =>
+            {
+                var command = new CommandDefinition(sql, new { rolId }, transaction, cancellationToken: cancellationToken);
+                var affected = await connection.ExecuteAsync(command);
+                return affected > 0;
             });
     }
 }

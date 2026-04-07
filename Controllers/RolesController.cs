@@ -11,6 +11,77 @@ namespace Muzu.Api.Controllers;
 public class RolesController(
     IRoleManagementService roleManagementService) : ControllerBase
 {
+    [HttpPost]
+    public async Task<ActionResult<RoleDto>> CrearRol([FromBody] CrearRolRequest request, CancellationToken cancellationToken)
+    {
+        var usuarioId = Guid.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? throw new UnauthorizedAccessException());
+        var tenantId = Guid.Parse(User.FindFirst("tenant_id")?.Value ?? throw new UnauthorizedAccessException());
+
+        try
+        {
+            var rol = await roleManagementService.CrearRolAsync(usuarioId, tenantId, request.Nombre, request.Descripcion, cancellationToken);
+            return CreatedAtAction(nameof(ObtenerTodosLosRoles), new { id = rol.Id }, rol);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new ProblemDetails
+            {
+                Title = "Conflicto de negocio",
+                Detail = ex.Message,
+                Status = StatusCodes.Status409Conflict
+            });
+        }
+    }
+
+    [HttpPut("{id:guid}")]
+    public async Task<ActionResult<RoleDto>> ActualizarRol(Guid id, [FromBody] ActualizarRolRequest request, CancellationToken cancellationToken)
+    {
+        var usuarioId = Guid.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? throw new UnauthorizedAccessException());
+        var tenantId = Guid.Parse(User.FindFirst("tenant_id")?.Value ?? throw new UnauthorizedAccessException());
+
+        try
+        {
+            var rol = await roleManagementService.ActualizarRolAsync(usuarioId, tenantId, id, request.Nombre, request.Descripcion, cancellationToken);
+            if (rol is null)
+            {
+                return NotFound();
+            }
+
+            return Ok(rol);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new ProblemDetails
+            {
+                Title = "Conflicto de negocio",
+                Detail = ex.Message,
+                Status = StatusCodes.Status409Conflict
+            });
+        }
+    }
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> EliminarRol(Guid id, CancellationToken cancellationToken)
+    {
+        var usuarioId = Guid.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? throw new UnauthorizedAccessException());
+        var tenantId = Guid.Parse(User.FindFirst("tenant_id")?.Value ?? throw new UnauthorizedAccessException());
+
+        try
+        {
+            await roleManagementService.EliminarRolAsync(usuarioId, tenantId, id, cancellationToken);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new ProblemDetails
+            {
+                Title = "Conflicto de negocio",
+                Detail = ex.Message,
+                Status = StatusCodes.Status409Conflict
+            });
+        }
+    }
+
     // GET: api/roles
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<RoleDto>>> ObtenerTodosLosRoles(CancellationToken cancellationToken)
@@ -61,4 +132,6 @@ public class RolesController(
     }
 }
 
+public record CrearRolRequest(string Nombre, string? Descripcion);
+public record ActualizarRolRequest(string Nombre, string? Descripcion);
 public record ActualizarPermisosDelRolRequest(List<string> PermisoCodigos);

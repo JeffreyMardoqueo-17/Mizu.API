@@ -18,6 +18,7 @@ public static class DependencyInjectionExtensions
         services.AddScoped<ITenantConfigRepository, TenantConfigRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddScoped<IMultaRepository, MultaRepository>();
+        services.AddScoped<IPartnerDocumentRepository, PartnerDocumentRepository>();
 
         return services;
     }
@@ -34,6 +35,7 @@ public static class DependencyInjectionExtensions
         services.AddScoped<IUsersService, UsersService>();
         services.AddScoped<IBoardsService, BoardsService>();
         services.AddScoped<IRoleManagementService, RoleManagementService>();
+        services.AddScoped<IPartnerDocumentService, PartnerDocumentService>();
 
         return services;
     }

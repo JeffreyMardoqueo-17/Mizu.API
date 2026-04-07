@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 using Muzu.Api.Core.DTOs;
 using Muzu.Api.Core.Interfaces.Service;
+using Muzu.Api.Core.Rules;
 
 namespace Muzu.Api.Controllers;
 
@@ -42,27 +43,51 @@ public sealed class AuthController : ControllerBase
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginDto request, CancellationToken cancellationToken)
     {
-        var result = await _authService.LoginAsync(request, cancellationToken);
-        if (result is null)
+        try
         {
-            return Unauthorized();
-        }
+            var result = await _authService.LoginAsync(request, cancellationToken);
+            if (result is null)
+            {
+                return Unauthorized();
+            }
 
-        AppendAuthCookies(result.AccessToken, result.Response.RefreshToken);
-        return Ok(result.Response);
+            AppendAuthCookies(result.AccessToken, result.Response.RefreshToken);
+            return Ok(result.Response);
+        }
+        catch (DirectivaAccessBlockedException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new
+            {
+                code = "DIRECTIVA_NOT_ACTIVE",
+                message = ex.Message,
+                statusCode = StatusCodes.Status403Forbidden
+            });
+        }
     }
 
     [HttpPost("refresh-token")]
     public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequestDto request, CancellationToken cancellationToken)
     {
-        var result = await _authService.RefreshTokenAsync(request.RefreshToken, cancellationToken);
-        if (result is null)
+        try
         {
-            return Unauthorized();
-        }
+            var result = await _authService.RefreshTokenAsync(request.RefreshToken, cancellationToken);
+            if (result is null)
+            {
+                return Unauthorized();
+            }
 
-        AppendAuthCookies(result.AccessToken, result.Response.RefreshToken);
-        return Ok(result.Response);
+            AppendAuthCookies(result.AccessToken, result.Response.RefreshToken);
+            return Ok(result.Response);
+        }
+        catch (DirectivaAccessBlockedException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new
+            {
+                code = "DIRECTIVA_NOT_ACTIVE",
+                message = ex.Message,
+                statusCode = StatusCodes.Status403Forbidden
+            });
+        }
     }
 
     [HttpPost("logout")]

@@ -229,6 +229,28 @@ public sealed class BoardRepository : RepositoryBase, IBoardRepository
             });
     }
 
+    public Task<bool> IsUserInActiveBoardAsync(Guid tenantId, Guid usuarioId, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           SELECT 1
+                           FROM directiva d
+                           INNER JOIN directiva_miembros dm ON dm.directiva_id = d.id
+                           WHERE d.tenant_id = @tenantId
+                             AND d.estado = 'Activa'
+                             AND dm.usuario_id = @usuarioId
+                           LIMIT 1
+                           """;
+
+        return WithConnectionAsync(
+            transaction,
+            async connection =>
+            {
+                var command = new CommandDefinition(sql, new { tenantId, usuarioId }, transaction, cancellationToken: cancellationToken);
+                var exists = await connection.QueryFirstOrDefaultAsync<int?>(command);
+                return exists.HasValue;
+            });
+    }
+
     public Task SetBoardStateAsync(Guid boardId, string estado, DateTime? fechaTransicion, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
     {
         const string sql = """

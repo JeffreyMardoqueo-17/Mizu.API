@@ -22,6 +22,7 @@ public sealed class AuthService : IAuthService
     private readonly ITenantConfigRepository _tenantConfigRepository;
     private readonly IRefreshTokenRepository _refreshTokenRepository;
     private readonly IRolRepository _rolRepository;
+    private readonly IBoardRepository _boardRepository;
     private readonly IJwtService _jwtService;
     private readonly IUnitOfWork _unitOfWork;
 
@@ -31,6 +32,7 @@ public sealed class AuthService : IAuthService
         ITenantConfigRepository tenantConfigRepository,
         IRefreshTokenRepository refreshTokenRepository,
         IRolRepository rolRepository,
+        IBoardRepository boardRepository,
         IJwtService jwtService,
         IUnitOfWork unitOfWork)
     {
@@ -39,6 +41,7 @@ public sealed class AuthService : IAuthService
         _tenantConfigRepository = tenantConfigRepository;
         _refreshTokenRepository = refreshTokenRepository;
         _rolRepository = rolRepository;
+        _boardRepository = boardRepository;
         _jwtService = jwtService;
         _unitOfWork = unitOfWork;
     }
@@ -96,6 +99,8 @@ public sealed class AuthService : IAuthService
             return null;
         }
 
+        await ValidarAccesoPorDirectivaAsync(usuario, cancellationToken);
+
         return await _unitOfWork.ExecuteInTransactionAsync(
             transaction => GenerarAutenticacionAsync(usuario, transaction, cancellationToken),
             cancellationToken);
@@ -117,6 +122,8 @@ public sealed class AuthService : IAuthService
                 {
                     return null;
                 }
+
+                await ValidarAccesoPorDirectivaAsync(usuario, cancellationToken);
 
                 await _refreshTokenRepository.RevocarAsync(refreshToken, transaction, cancellationToken);
                 return await GenerarAutenticacionAsync(usuario, transaction, cancellationToken);
@@ -219,5 +226,24 @@ public sealed class AuthService : IAuthService
             .Select(t => new ConsumoTramoDto(t.DesdeM3, t.HastaM3, t.Cargo, t.ModoCobro.Trim().ToLowerInvariant()))
             .OrderBy(t => t.DesdeM3)
             .ToList();
+    }
+
+    private async Task ValidarAccesoPorDirectivaAsync(Usuario usuario, CancellationToken cancellationToken)
+    {
+        if (SystemRoles.EsAdministrador(usuario.Rol))
+        {
+            return;
+        }
+
+        if (!SystemRoles.EsRolDeDirectiva(usuario.Rol))
+        {
+            return;
+        }
+
+        var perteneceADirectivaActiva = await _boardRepository.IsUserInActiveBoardAsync(usuario.TenantId, usuario.Id, cancellationToken: cancellationToken);
+        if (!perteneceADirectivaActiva)
+        {
+            throw new DirectivaAccessBlockedException("Tu cuenta no puede ingresar aun. Debes esperar que el administrador active la directiva.");
+        }
     }
 }
