@@ -15,6 +15,7 @@ public static class DependencyInjectionExtensions
         services.AddScoped<IUsuarioRepository, UsuarioRepository>();
         services.AddScoped<IRolRepository, RolRepository>();
         services.AddScoped<IBoardRepository, BoardRepository>();
+        services.AddScoped<IReunionRepository, ReunionRepository>();
         services.AddScoped<ITenantConfigRepository, TenantConfigRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddScoped<IMultaRepository, MultaRepository>();
@@ -36,6 +37,7 @@ public static class DependencyInjectionExtensions
         services.AddScoped<IUsuarioAdministracionService, UsuarioAdministracionService>();
         services.AddScoped<IUsersService, UsersService>();
         services.AddScoped<IBoardsService, BoardsService>();
+        services.AddScoped<IReunionService, ReunionService>();
         services.AddScoped<IRoleManagementService, RoleManagementService>();
         services.AddScoped<IPartnerDocumentService, PartnerDocumentService>();
         services.AddScoped<IMedidorService, MedidorService>();

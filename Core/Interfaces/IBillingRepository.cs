@@ -32,6 +32,7 @@ public interface IBillingRepository
     Task<LateFeeHistory> RegistrarMoraAsync(LateFeeHistory history, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<OperationalPenalty>> ObtenerMultasPendientesAsync(Guid tenantId, DateOnly limitDate, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);
     Task<bool> AsignarMultaAsync(Guid tenantId, Guid penaltyId, Guid meterId, Guid invoiceId, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);
+    Task<OperationalPenalty> RegistrarMultaOperativaPendienteAsync(OperationalPenalty penalty, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);
 
     Task<CarriedBalance> RegistrarSaldoArrastradoAsync(CarriedBalance carriedBalance, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);
     Task<InvoiceAdjustment> RegistrarAjusteAsync(InvoiceAdjustment adjustment, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);

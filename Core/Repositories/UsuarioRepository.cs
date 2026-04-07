@@ -396,6 +396,34 @@ public sealed class UsuarioRepository : RepositoryBase, IUsuarioRepository
             });
     }
 
+    public Task<IReadOnlyList<Usuario>> ListarSociosActivosAsync(Guid tenantId, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
+    {
+        var sql = SelectUsuarioSql + " WHERE u.tenant_id = @tenantId AND u.eliminado = FALSE AND u.activo = TRUE AND LOWER(COALESCE(u.rol, 'Socio')) = LOWER(@rolSocio) ORDER BY u.nombre ASC, u.apellido ASC";
+
+        return WithConnectionAsync<IReadOnlyList<Usuario>>(
+            transaction,
+            async connection =>
+            {
+                var command = new CommandDefinition(sql, new { tenantId, rolSocio = Muzu.Api.Core.Rules.SystemRoles.Socio }, transaction, cancellationToken: cancellationToken);
+                var rows = await connection.QueryAsync<Usuario>(command);
+                return rows.ToList();
+            });
+    }
+
+    public Task<IReadOnlyList<Usuario>> ListarActivosAsync(Guid tenantId, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
+    {
+        var sql = SelectUsuarioSql + " WHERE u.tenant_id = @tenantId AND u.eliminado = FALSE AND u.activo = TRUE ORDER BY u.nombre ASC, u.apellido ASC";
+
+        return WithConnectionAsync<IReadOnlyList<Usuario>>(
+            transaction,
+            async connection =>
+            {
+                var command = new CommandDefinition(sql, new { tenantId }, transaction, cancellationToken: cancellationToken);
+                var rows = await connection.QueryAsync<Usuario>(command);
+                return rows.ToList();
+            });
+    }
+
     public Task<bool> EstablecerPasswordTemporalAsync(Guid id, Guid tenantId, string passwordHash, bool markAsViewed, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
     {
         const string sql = """

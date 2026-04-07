@@ -216,6 +216,47 @@ CREATE TABLE IF NOT EXISTS directiva_historial (
     fecha_creacion TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS reuniones (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    titulo VARCHAR(180) NOT NULL,
+    fecha_reunion DATE NOT NULL,
+    hora_inicio TIME NOT NULL,
+    hora_fin TIME,
+    estado VARCHAR(20) NOT NULL DEFAULT 'Programada',
+    puntos_tratar_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    acuerdos_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    notas_secretaria TEXT,
+    creado_por_usuario_id UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    iniciada_at TIMESTAMP,
+    finalizada_at TIMESTAMP,
+    fecha_creacion TIMESTAMP NOT NULL DEFAULT NOW(),
+    fecha_actualizacion TIMESTAMP,
+    CONSTRAINT ck_reuniones_estado CHECK (estado IN ('Programada', 'EnCurso', 'Finalizada', 'Cancelada'))
+);
+
+CREATE TABLE IF NOT EXISTS reunion_asistencias (
+    id UUID PRIMARY KEY,
+    reunion_id UUID NOT NULL REFERENCES reuniones(id) ON DELETE CASCADE,
+    usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    asistio BOOLEAN NOT NULL DEFAULT FALSE,
+    observacion TEXT,
+    marcado_por_usuario_id UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    fecha_marcado TIMESTAMP,
+    fecha_creacion TIMESTAMP NOT NULL DEFAULT NOW(),
+    fecha_actualizacion TIMESTAMP,
+    UNIQUE (reunion_id, usuario_id)
+);
+
+CREATE TABLE IF NOT EXISTS reunion_historial (
+    id UUID PRIMARY KEY,
+    reunion_id UUID NOT NULL REFERENCES reuniones(id) ON DELETE CASCADE,
+    evento VARCHAR(100) NOT NULL,
+    descripcion TEXT NOT NULL,
+    actor_usuario_id UUID,
+    fecha_creacion TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 -- Refresh tokens table
 CREATE TABLE IF NOT EXISTS refresh_tokens (
     id UUID PRIMARY KEY,
@@ -249,7 +290,8 @@ VALUES
     ('00000000-0000-0000-0000-100000000007', 'pagos.read', 'Consultar historial de pagos.'),
     ('00000000-0000-0000-0000-100000000008', 'multas.read', 'Consultar historial de multas.'),
     ('00000000-0000-0000-0000-100000000009', 'directiva.manage', 'Gestionar periodos de directiva.'),
-    ('00000000-0000-0000-0000-100000000010', 'docs.manage', 'Gestionar documentos de socios.')
+    ('00000000-0000-0000-0000-100000000010', 'docs.manage', 'Gestionar documentos de socios.'),
+    ('00000000-0000-0000-0000-100000000011', 'reuniones.manage', 'Gestionar reuniones y asistencias.')
 ON CONFLICT (codigo) DO NOTHING;
 
 -- Administrator: all permissions
@@ -266,6 +308,13 @@ SELECT r.id, p.id
 FROM roles r
 INNER JOIN permisos p ON p.codigo IN ('usuarios.read', 'usuarios.create', 'usuarios.update', 'usuarios.assign-role', 'config.read', 'config.update', 'pagos.read', 'multas.read', 'directiva.manage', 'docs.manage')
 WHERE r.nombre = 'Presidente'
+ON CONFLICT (rol_id, permiso_id) DO NOTHING;
+
+INSERT INTO rol_permisos (rol_id, permiso_id)
+SELECT r.id, p.id
+FROM roles r
+INNER JOIN permisos p ON p.codigo IN ('usuarios.read', 'config.read', 'pagos.read', 'multas.read', 'docs.manage', 'reuniones.manage')
+WHERE r.nombre = 'Secretario'
 ON CONFLICT (rol_id, permiso_id) DO NOTHING;
 
 -- Tesorero
@@ -387,6 +436,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_directiva_tenant_activa
 CREATE INDEX IF NOT EXISTS idx_directiva_miembros_directiva ON directiva_miembros(directiva_id);
 CREATE INDEX IF NOT EXISTS idx_directiva_miembros_usuario ON directiva_miembros(usuario_id);
 CREATE INDEX IF NOT EXISTS idx_directiva_historial_board ON directiva_historial(board_id);
+CREATE INDEX IF NOT EXISTS idx_reuniones_tenant ON reuniones(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_reuniones_fecha ON reuniones(tenant_id, fecha_reunion DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_reunion_asistencias_reunion_usuario ON reunion_asistencias(reunion_id, usuario_id);
+CREATE INDEX IF NOT EXISTS idx_reunion_asistencias_reunion ON reunion_asistencias(reunion_id);
+CREATE INDEX IF NOT EXISTS idx_reunion_historial_reunion ON reunion_historial(reunion_id);
 
 -- Partner Documents Table
 -- Almacena documentos de identidad (DUI, Pasaporte, etc.) de socios

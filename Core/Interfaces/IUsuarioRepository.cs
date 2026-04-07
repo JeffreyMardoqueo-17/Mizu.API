@@ -33,6 +33,8 @@ public interface IUsuarioRepository
     Task<Usuario?> ActualizarDatosAsync(Usuario usuario, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);
     Task<bool> SetActiveStateAsync(Guid id, Guid tenantId, bool activo, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);
     Task<bool> EliminarLogicoAsync(Guid id, Guid tenantId, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Usuario>> ListarActivosAsync(Guid tenantId, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Usuario>> ListarSociosActivosAsync(Guid tenantId, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);
     Task<bool> EstablecerPasswordTemporalAsync(Guid id, Guid tenantId, string passwordHash, bool markAsViewed, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);
     Task<bool> EstablecerPasswordDePeriodoAsync(Guid id, Guid tenantId, string passwordHash, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);
     Task<bool> CambiarPasswordDefinitivaAsync(Guid id, Guid tenantId, string passwordHash, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);

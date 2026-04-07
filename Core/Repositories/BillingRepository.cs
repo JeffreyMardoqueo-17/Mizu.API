@@ -752,6 +752,70 @@ public sealed class BillingRepository : RepositoryBase, IBillingRepository
             });
     }
 
+    public Task<OperationalPenalty> RegistrarMultaOperativaPendienteAsync(OperationalPenalty penalty, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            INSERT INTO operational_penalties (
+                id,
+                tenant_id,
+                usuario_id,
+                source_type,
+                source_date,
+                amount,
+                status,
+                assignment_strategy,
+                assigned_meter_id,
+                assigned_invoice_id,
+                assigned_at,
+                notes,
+                created_by,
+                created_at
+            ) VALUES (
+                @Id,
+                @TenantId,
+                @UsuarioId,
+                @SourceType,
+                @SourceDate,
+                @Amount,
+                @Status,
+                @AssignmentStrategy,
+                @AssignedMeterId,
+                @AssignedInvoiceId,
+                @AssignedAt,
+                @Notes,
+                @CreatedBy,
+                @CreatedAt
+            );
+            """;
+
+        var parameters = new
+        {
+            penalty.Id,
+            penalty.TenantId,
+            penalty.UsuarioId,
+            penalty.SourceType,
+            SourceDate = penalty.SourceDate.ToDateTime(TimeOnly.MinValue),
+            penalty.Amount,
+            penalty.Status,
+            penalty.AssignmentStrategy,
+            penalty.AssignedMeterId,
+            penalty.AssignedInvoiceId,
+            penalty.AssignedAt,
+            penalty.Notes,
+            penalty.CreatedBy,
+            penalty.CreatedAt
+        };
+
+        return WithConnectionAsync(
+            transaction,
+            async connection =>
+            {
+                var command = new CommandDefinition(sql, parameters, transaction, cancellationToken: cancellationToken);
+                await connection.ExecuteAsync(command);
+                return penalty;
+            });
+    }
+
     public Task<CarriedBalance> RegistrarSaldoArrastradoAsync(CarriedBalance carriedBalance, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
     {
         const string sql = """
