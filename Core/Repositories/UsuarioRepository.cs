@@ -18,7 +18,14 @@ public sealed class UsuarioRepository : RepositoryBase, IUsuarioRepository
                                             u.direccion,
                                             u.password_hash,
                                             COALESCE(rol.nombre, COALESCE(NULLIF(u.rol, ''), 'Socio')) AS rol,
-                                            u.fecha_creacion
+                                              u.activo,
+                                              u.eliminado,
+                                              u.must_change_password,
+                                              u.fecha_creacion,
+                                              u.fecha_actualizacion,
+                                              u.fecha_eliminacion,
+                                              u.temp_password_generated_at,
+                                              u.temp_password_viewed_at
                                      FROM usuarios u
                                      LEFT JOIN LATERAL (
                                          SELECT r.nombre
@@ -39,8 +46,8 @@ public sealed class UsuarioRepository : RepositoryBase, IUsuarioRepository
     public Task<Usuario> CrearUsuarioAsync(Usuario usuario, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
     {
         const string sql = """
-                           INSERT INTO usuarios (id, tenant_id, nombre, apellido, dui, correo, telefono, direccion, password_hash, rol, fecha_creacion)
-                           VALUES (@Id, @TenantId, @Nombre, @Apellido, @DUI, @Correo, @Telefono, @Direccion, @PasswordHash, @Rol, @FechaCreacion)
+                           INSERT INTO usuarios (id, tenant_id, nombre, apellido, dui, correo, telefono, direccion, password_hash, rol, activo, eliminado, must_change_password, fecha_creacion, fecha_actualizacion, temp_password_generated_at, temp_password_viewed_at)
+                           VALUES (@Id, @TenantId, @Nombre, @Apellido, @DUI, @Correo, @Telefono, @Direccion, @PasswordHash, @Rol, @Activo, @Eliminado, @MustChangePassword, @FechaCreacion, @FechaActualizacion, @TempPasswordGeneratedAt, @TempPasswordViewedAt)
                            """;
 
         return WithConnectionAsync(
@@ -55,7 +62,7 @@ public sealed class UsuarioRepository : RepositoryBase, IUsuarioRepository
 
     public Task<Usuario?> ObtenerPorCorreoAsync(string correo, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
     {
-        var sql = SelectUsuarioSql + " WHERE LOWER(u.correo) = LOWER(@correo)";
+        var sql = SelectUsuarioSql + " WHERE LOWER(u.correo) = LOWER(@correo) AND u.eliminado = FALSE AND u.activo = TRUE";
 
         return WithConnectionAsync(
             transaction,
@@ -68,7 +75,7 @@ public sealed class UsuarioRepository : RepositoryBase, IUsuarioRepository
 
     public Task<Usuario?> ObtenerPorIdAsync(Guid id, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
     {
-        var sql = SelectUsuarioSql + " WHERE u.id = @id";
+        var sql = SelectUsuarioSql + " WHERE u.id = @id AND u.eliminado = FALSE";
 
         return WithConnectionAsync(
             transaction,
@@ -81,7 +88,20 @@ public sealed class UsuarioRepository : RepositoryBase, IUsuarioRepository
 
     public Task<Usuario?> ObtenerPorIdYTenantAsync(Guid id, Guid tenantId, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
     {
-        var sql = SelectUsuarioSql + " WHERE u.id = @id AND u.tenant_id = @tenantId";
+        var sql = SelectUsuarioSql + " WHERE u.id = @id AND u.tenant_id = @tenantId AND u.eliminado = FALSE";
+
+        return WithConnectionAsync(
+            transaction,
+            async connection =>
+            {
+                var command = new CommandDefinition(sql, new { id, tenantId }, transaction, cancellationToken: cancellationToken);
+                return await connection.QueryFirstOrDefaultAsync<Usuario>(command);
+            });
+    }
+
+    public Task<Usuario?> ObtenerPorIdYTenantIncluyendoInactivosAsync(Guid id, Guid tenantId, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
+    {
+        var sql = SelectUsuarioSql + " WHERE u.id = @id AND u.tenant_id = @tenantId AND u.eliminado = FALSE";
 
         return WithConnectionAsync(
             transaction,
@@ -184,6 +204,7 @@ public sealed class UsuarioRepository : RepositoryBase, IUsuarioRepository
     {
         const string whereSql = """
                                 WHERE u.tenant_id = @tenantId
+                                                                    AND u.eliminado = FALSE
                                   AND (
                                       @search IS NULL
                                       OR @search = ''
@@ -221,6 +242,206 @@ public sealed class UsuarioRepository : RepositoryBase, IUsuarioRepository
                 var items = (await connection.QueryAsync<Usuario>(listCommand)).ToList();
 
                 return ((IReadOnlyList<Usuario>)items, total);
+            });
+    }
+
+    public Task<(IReadOnlyList<Usuario> Items, int Total)> ListarAvanzadoPorTenantAsync(
+        Guid tenantId,
+        string? dui,
+        string? nombre,
+        string? correo,
+        bool? estado,
+        int page,
+        int pageSize,
+        IDbTransaction? transaction = null,
+        CancellationToken cancellationToken = default)
+    {
+        const string whereSql = """
+                                WHERE u.tenant_id = @tenantId
+                                  AND u.eliminado = FALSE
+                                  AND (@estado IS NULL OR u.activo = @estado)
+                                  AND (@nombre IS NULL OR @nombre = '' OR LOWER(CONCAT(u.nombre, ' ', u.apellido)) LIKE LOWER(@nombreLike))
+                                  AND (@correo IS NULL OR @correo = '' OR LOWER(u.correo) LIKE LOWER(@correoLike))
+                                  AND (
+                                      @dui IS NULL
+                                      OR @dui = ''
+                                      OR regexp_replace(u.dui, '[^0-9]', '', 'g') LIKE @duiLike
+                                  )
+                                """;
+
+        var selectSql = SelectUsuarioSql + "\n" + whereSql + "\nORDER BY u.fecha_creacion DESC\nOFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY";
+        var countSql = "SELECT COUNT(1) FROM usuarios u\n" + whereSql;
+
+        return WithConnectionAsync(
+            transaction,
+            async connection =>
+            {
+                var normalizedDui = string.IsNullOrWhiteSpace(dui)
+                    ? null
+                    : new string(dui.Where(char.IsDigit).ToArray());
+
+                var parameters = new
+                {
+                    tenantId,
+                    estado,
+                    nombre = string.IsNullOrWhiteSpace(nombre) ? null : nombre.Trim(),
+                    nombreLike = string.IsNullOrWhiteSpace(nombre) ? null : $"%{nombre.Trim()}%",
+                    correo = string.IsNullOrWhiteSpace(correo) ? null : correo.Trim(),
+                    correoLike = string.IsNullOrWhiteSpace(correo) ? null : $"%{correo.Trim()}%",
+                    dui = normalizedDui,
+                    duiLike = normalizedDui is null ? null : $"%{normalizedDui}%",
+                    offset = (page - 1) * pageSize,
+                    pageSize
+                };
+
+                var countCommand = new CommandDefinition(countSql, parameters, transaction, cancellationToken: cancellationToken);
+                var total = await connection.ExecuteScalarAsync<int>(countCommand);
+
+                var listCommand = new CommandDefinition(selectSql, parameters, transaction, cancellationToken: cancellationToken);
+                var items = (await connection.QueryAsync<Usuario>(listCommand)).ToList();
+
+                return ((IReadOnlyList<Usuario>)items, total);
+            });
+    }
+
+    public Task<Usuario?> ActualizarDatosAsync(Usuario usuario, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           UPDATE usuarios
+                           SET nombre = @Nombre,
+                               apellido = @Apellido,
+                               dui = @DUI,
+                               correo = @Correo,
+                               telefono = @Telefono,
+                               direccion = @Direccion,
+                               activo = @Activo,
+                               fecha_actualizacion = NOW()
+                           WHERE id = @Id
+                             AND tenant_id = @TenantId
+                             AND eliminado = FALSE;
+                           """;
+
+        return WithConnectionAsync(
+            transaction,
+            async connection =>
+            {
+                var command = new CommandDefinition(sql, usuario, transaction, cancellationToken: cancellationToken);
+                var affected = await connection.ExecuteAsync(command);
+                return affected > 0 ? usuario : null;
+            });
+    }
+
+    public Task<bool> SetActiveStateAsync(Guid id, Guid tenantId, bool activo, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           UPDATE usuarios
+                           SET activo = @activo,
+                               fecha_actualizacion = NOW()
+                           WHERE id = @id
+                             AND tenant_id = @tenantId
+                             AND eliminado = FALSE
+                           """;
+
+        return WithConnectionAsync(
+            transaction,
+            async connection =>
+            {
+                var command = new CommandDefinition(sql, new { id, tenantId, activo }, transaction, cancellationToken: cancellationToken);
+                var affected = await connection.ExecuteAsync(command);
+                return affected > 0;
+            });
+    }
+
+    public Task<bool> EliminarLogicoAsync(Guid id, Guid tenantId, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           UPDATE usuarios
+                           SET eliminado = TRUE,
+                               activo = FALSE,
+                               fecha_eliminacion = NOW(),
+                               fecha_actualizacion = NOW()
+                           WHERE id = @id
+                             AND tenant_id = @tenantId
+                             AND eliminado = FALSE
+                           """;
+
+        return WithConnectionAsync(
+            transaction,
+            async connection =>
+            {
+                var command = new CommandDefinition(sql, new { id, tenantId }, transaction, cancellationToken: cancellationToken);
+                var affected = await connection.ExecuteAsync(command);
+                return affected > 0;
+            });
+    }
+
+    public Task<bool> EstablecerPasswordTemporalAsync(Guid id, Guid tenantId, string passwordHash, bool markAsViewed, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           UPDATE usuarios
+                           SET password_hash = @passwordHash,
+                               must_change_password = TRUE,
+                               temp_password_generated_at = NOW(),
+                               temp_password_viewed_at = CASE WHEN @markAsViewed THEN NOW() ELSE NULL END,
+                               fecha_actualizacion = NOW()
+                           WHERE id = @id
+                             AND tenant_id = @tenantId
+                             AND eliminado = FALSE
+                           """;
+
+        return WithConnectionAsync(
+            transaction,
+            async connection =>
+            {
+                var command = new CommandDefinition(sql, new { id, tenantId, passwordHash, markAsViewed }, transaction, cancellationToken: cancellationToken);
+                var affected = await connection.ExecuteAsync(command);
+                return affected > 0;
+            });
+    }
+
+    public Task<bool> EstablecerPasswordDePeriodoAsync(Guid id, Guid tenantId, string passwordHash, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           UPDATE usuarios
+                           SET password_hash = @passwordHash,
+                               must_change_password = FALSE,
+                               temp_password_generated_at = NOW(),
+                               temp_password_viewed_at = NOW(),
+                               fecha_actualizacion = NOW()
+                           WHERE id = @id
+                             AND tenant_id = @tenantId
+                             AND eliminado = FALSE
+                           """;
+
+        return WithConnectionAsync(
+            transaction,
+            async connection =>
+            {
+                var command = new CommandDefinition(sql, new { id, tenantId, passwordHash }, transaction, cancellationToken: cancellationToken);
+                var affected = await connection.ExecuteAsync(command);
+                return affected > 0;
+            });
+    }
+
+    public Task<bool> CambiarPasswordDefinitivaAsync(Guid id, Guid tenantId, string passwordHash, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           UPDATE usuarios
+                           SET password_hash = @passwordHash,
+                               must_change_password = FALSE,
+                               fecha_actualizacion = NOW()
+                           WHERE id = @id
+                             AND tenant_id = @tenantId
+                             AND eliminado = FALSE
+                           """;
+
+        return WithConnectionAsync(
+            transaction,
+            async connection =>
+            {
+                var command = new CommandDefinition(sql, new { id, tenantId, passwordHash }, transaction, cancellationToken: cancellationToken);
+                var affected = await connection.ExecuteAsync(command);
+                return affected > 0;
             });
     }
 }

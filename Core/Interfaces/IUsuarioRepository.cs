@@ -19,4 +19,21 @@ public interface IUsuarioRepository
         int pageSize,
         IDbTransaction? transaction = null,
         CancellationToken cancellationToken = default);
+    Task<(IReadOnlyList<Usuario> Items, int Total)> ListarAvanzadoPorTenantAsync(
+        Guid tenantId,
+        string? dui,
+        string? nombre,
+        string? correo,
+        bool? estado,
+        int page,
+        int pageSize,
+        IDbTransaction? transaction = null,
+        CancellationToken cancellationToken = default);
+    Task<Usuario?> ObtenerPorIdYTenantIncluyendoInactivosAsync(Guid id, Guid tenantId, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);
+    Task<Usuario?> ActualizarDatosAsync(Usuario usuario, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);
+    Task<bool> SetActiveStateAsync(Guid id, Guid tenantId, bool activo, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);
+    Task<bool> EliminarLogicoAsync(Guid id, Guid tenantId, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);
+    Task<bool> EstablecerPasswordTemporalAsync(Guid id, Guid tenantId, string passwordHash, bool markAsViewed, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);
+    Task<bool> EstablecerPasswordDePeriodoAsync(Guid id, Guid tenantId, string passwordHash, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);
+    Task<bool> CambiarPasswordDefinitivaAsync(Guid id, Guid tenantId, string passwordHash, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);
 }

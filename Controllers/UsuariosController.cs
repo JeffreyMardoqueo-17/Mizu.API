@@ -79,34 +79,12 @@ public sealed class UsuariosController : ControllerBase
     [HttpPatch("{usuarioId:guid}/rol")]
     public async Task<IActionResult> ActualizarRol([FromRoute] Guid usuarioId, [FromBody] ActualizarRolUsuarioDto request, CancellationToken cancellationToken)
     {
-        if (!TryGetAuthContext(out var actorUsuarioId, out var actorTenantId))
+        return Conflict(new ProblemDetails
         {
-            return Unauthorized();
-        }
-
-        try
-        {
-            var result = await _usuarioAdministracionService.ActualizarRolAsync(usuarioId, request, actorUsuarioId, actorTenantId, cancellationToken);
-            if (result is null)
-            {
-                return NotFound();
-            }
-
-            return Ok(result);
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return Forbid();
-        }
-        catch (InvalidOperationException exception)
-        {
-            return Conflict(new ProblemDetails
-            {
-                Title = "Conflicto de negocio",
-                Detail = exception.Message,
-                Status = StatusCodes.Status409Conflict
-            });
-        }
+            Title = "Operacion no permitida",
+            Detail = "El rol ya no se edita desde modulo usuarios. Usa el flujo de directivas en /api/boards/{id}/members.",
+            Status = StatusCodes.Status409Conflict
+        });
     }
 
     private bool TryGetAuthContext(out Guid usuarioId, out Guid tenantId)
