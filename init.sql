@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS tenants (
 CREATE TABLE IF NOT EXISTS usuarios (
     id UUID PRIMARY KEY,
     tenant_id UUID NOT NULL REFERENCES tenants(id),
+    niu BIGINT,
     nombre VARCHAR(255) NOT NULL,
     apellido VARCHAR(255) NOT NULL,
     dui VARCHAR(20) NOT NULL,
@@ -33,11 +34,37 @@ CREATE TABLE IF NOT EXISTS usuarios (
 ALTER TABLE usuarios
     ADD COLUMN IF NOT EXISTS activo BOOLEAN NOT NULL DEFAULT TRUE,
     ADD COLUMN IF NOT EXISTS eliminado BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS niu BIGINT,
     ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT FALSE,
     ADD COLUMN IF NOT EXISTS fecha_actualizacion TIMESTAMP,
     ADD COLUMN IF NOT EXISTS fecha_eliminacion TIMESTAMP,
     ADD COLUMN IF NOT EXISTS temp_password_generated_at TIMESTAMP,
     ADD COLUMN IF NOT EXISTS temp_password_viewed_at TIMESTAMP;
+
+WITH tenant_base AS (
+    SELECT
+        u.tenant_id,
+        COALESCE(MAX(u.niu), 0) AS base_niu
+    FROM usuarios u
+    GROUP BY u.tenant_id
+),
+ranked_usuarios AS (
+    SELECT
+        u.id,
+        u.tenant_id,
+        tenant_base.base_niu + ROW_NUMBER() OVER (
+            PARTITION BY u.tenant_id
+            ORDER BY u.fecha_creacion, u.id
+        ) AS niu_calculado
+    FROM usuarios u
+    INNER JOIN tenant_base ON tenant_base.tenant_id = u.tenant_id
+    WHERE u.niu IS NULL
+)
+UPDATE usuarios u
+SET niu = ranked_usuarios.niu_calculado
+FROM ranked_usuarios
+WHERE u.id = ranked_usuarios.id
+  AND u.tenant_id = ranked_usuarios.tenant_id;
 
 -- Role and permission catalog
 CREATE TABLE IF NOT EXISTS roles (
@@ -93,7 +120,9 @@ CREATE TABLE IF NOT EXISTS tenant_configs (
     tramos_consumo_json JSONB NOT NULL DEFAULT '[]'::jsonb,
     multa_retraso DECIMAL(10,2) NOT NULL DEFAULT 2,
     multa_no_asistir_reunion DECIMAL(10,2) NOT NULL DEFAULT 5,
-    multa_no_asistir_trabajo DECIMAL(10,2) NOT NULL DEFAULT 10
+    multa_no_asistir_trabajo DECIMAL(10,2) NOT NULL DEFAULT 10,
+    permitir_multiples_contadores BOOLEAN NOT NULL DEFAULT FALSE,
+    maximo_contadores_por_usuario INTEGER NOT NULL DEFAULT 1
 );
 
 ALTER TABLE tenant_configs
@@ -102,7 +131,13 @@ ALTER TABLE tenant_configs
     ADD COLUMN IF NOT EXISTS limite_consumo_extra3 DECIMAL(10,2) NOT NULL DEFAULT 65,
     ADD COLUMN IF NOT EXISTS cargo_extra3 DECIMAL(10,2) NOT NULL DEFAULT 0.50,
     ADD COLUMN IF NOT EXISTS cargo_exceso_mayor DECIMAL(10,2) NOT NULL DEFAULT 1.00,
-    ADD COLUMN IF NOT EXISTS tramos_consumo_json JSONB NOT NULL DEFAULT '[]'::jsonb;
+    ADD COLUMN IF NOT EXISTS tramos_consumo_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS permitir_multiples_contadores BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS maximo_contadores_por_usuario INTEGER NOT NULL DEFAULT 1;
+
+UPDATE tenant_configs
+SET maximo_contadores_por_usuario = 1
+WHERE maximo_contadores_por_usuario < 1;
 
 -- Fines/Rules table
 CREATE TABLE IF NOT EXISTS multas (
@@ -282,9 +317,61 @@ WHERE NOT EXISTS (
       AND ur.activo = TRUE
 );
 
+-- Tabla de medidores (pajas) por socio
+CREATE TABLE IF NOT EXISTS medidores (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    numero_medidor BIGINT NOT NULL,
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
+    fecha_creacion TIMESTAMP NOT NULL DEFAULT NOW(),
+    fecha_actualizacion TIMESTAMP,
+    eliminado BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+-- Backfill: asegura al menos un medidor por usuario existente
+INSERT INTO medidores (
+    id,
+    tenant_id,
+    usuario_id,
+    numero_medidor,
+    activo,
+    fecha_creacion,
+    fecha_actualizacion,
+    eliminado
+)
+SELECT
+    gen_random_uuid(),
+    ordered.tenant_id,
+    ordered.id,
+    ordered.numero_medidor,
+    TRUE,
+    NOW(),
+    NOW(),
+    FALSE
+FROM (
+    SELECT
+        u.id,
+        u.tenant_id,
+        ROW_NUMBER() OVER (
+            PARTITION BY u.tenant_id
+            ORDER BY u.niu, u.fecha_creacion, u.id
+        ) AS numero_medidor
+    FROM usuarios u
+    WHERE u.eliminado = FALSE
+) ordered
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM medidores m
+    WHERE m.usuario_id = ordered.id
+      AND m.tenant_id = ordered.tenant_id
+      AND m.eliminado = FALSE
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_usuarios_correo ON usuarios(correo);
 CREATE INDEX IF NOT EXISTS idx_usuarios_tenant ON usuarios(tenant_id);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_usuarios_tenant_niu ON usuarios(tenant_id, niu) WHERE NOT eliminado;
 CREATE INDEX IF NOT EXISTS idx_tenant_configs_tenant ON tenant_configs(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_multas_tenant ON multas(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token);
@@ -329,3 +416,167 @@ CREATE INDEX IF NOT EXISTS idx_partner_documents_usuario ON partner_documents(us
 CREATE INDEX IF NOT EXISTS idx_partner_documents_tenant ON partner_documents(tenant_id) WHERE NOT eliminado;
 CREATE INDEX IF NOT EXISTS idx_partner_documents_cloudinary_public_id ON partner_documents(cloudinary_public_id);
 CREATE INDEX IF NOT EXISTS idx_partner_documents_fecha_creacion ON partner_documents(fecha_creacion DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_medidores_tenant_numero ON medidores(tenant_id, numero_medidor) WHERE NOT eliminado;
+CREATE INDEX IF NOT EXISTS idx_medidores_usuario ON medidores(usuario_id) WHERE NOT eliminado;
+CREATE INDEX IF NOT EXISTS idx_medidores_tenant ON medidores(tenant_id) WHERE NOT eliminado;
+
+-- Billing cycles and meter billing tables
+CREATE TABLE IF NOT EXISTS billing_cycles (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    period_code VARCHAR(20) NOT NULL,
+    period_start DATE NOT NULL,
+    period_end DATE NOT NULL,
+    due_date DATE NOT NULL,
+    issue_date DATE NOT NULL,
+    frequency VARCHAR(20) NOT NULL DEFAULT 'monthly',
+    status VARCHAR(20) NOT NULL DEFAULT 'abierto',
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    closed_at TIMESTAMP,
+    UNIQUE (tenant_id, period_code)
+);
+
+CREATE TABLE IF NOT EXISTS meter_readings (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    meter_id UUID NOT NULL REFERENCES medidores(id) ON DELETE CASCADE,
+    billing_cycle_id UUID NOT NULL REFERENCES billing_cycles(id) ON DELETE CASCADE,
+    read_at DATE NOT NULL,
+    previous_reading DECIMAL(18,3) NOT NULL DEFAULT 0,
+    current_reading DECIMAL(18,3) NOT NULL,
+    consumption_m3 DECIMAL(18,3) NOT NULL,
+    source VARCHAR(30) NOT NULL DEFAULT 'manual',
+    notes TEXT,
+    created_by UUID REFERENCES usuarios(id),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP,
+    UNIQUE (tenant_id, meter_id, billing_cycle_id),
+    CONSTRAINT ck_meter_readings_monotonic CHECK (current_reading >= previous_reading)
+);
+
+CREATE TABLE IF NOT EXISTS invoices (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    meter_id UUID NOT NULL REFERENCES medidores(id) ON DELETE CASCADE,
+    usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    billing_cycle_id UUID NOT NULL REFERENCES billing_cycles(id) ON DELETE CASCADE,
+    meter_reading_id UUID NOT NULL REFERENCES meter_readings(id) ON DELETE CASCADE,
+    invoice_number VARCHAR(60) NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'emitido',
+    currency VARCHAR(10) NOT NULL DEFAULT 'USD',
+    subtotal DECIMAL(18,2) NOT NULL DEFAULT 0,
+    previous_balance DECIMAL(18,2) NOT NULL DEFAULT 0,
+    late_fee_amount DECIMAL(18,2) NOT NULL DEFAULT 0,
+    operational_penalty_amount DECIMAL(18,2) NOT NULL DEFAULT 0,
+    adjustments_amount DECIMAL(18,2) NOT NULL DEFAULT 0,
+    total_amount DECIMAL(18,2) NOT NULL DEFAULT 0,
+    paid_amount DECIMAL(18,2) NOT NULL DEFAULT 0,
+    pending_amount DECIMAL(18,2) NOT NULL DEFAULT 0,
+    issued_at TIMESTAMP,
+    due_date DATE NOT NULL,
+    paid_at TIMESTAMP,
+    cancelled_at TIMESTAMP,
+    reliquidated_from_invoice_id UUID REFERENCES invoices(id),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP,
+    UNIQUE (tenant_id, invoice_number)
+);
+
+CREATE TABLE IF NOT EXISTS invoice_lines (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+    line_type VARCHAR(40) NOT NULL,
+    description TEXT NOT NULL,
+    quantity DECIMAL(18,3) NOT NULL DEFAULT 1,
+    unit_price DECIMAL(18,2) NOT NULL DEFAULT 0,
+    amount DECIMAL(18,2) NOT NULL DEFAULT 0,
+    reference_table VARCHAR(80),
+    reference_id UUID,
+    metadata JSONB,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS payments (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+    meter_id UUID NOT NULL REFERENCES medidores(id) ON DELETE CASCADE,
+    usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    payment_date DATE NOT NULL,
+    amount DECIMAL(18,2) NOT NULL,
+    method VARCHAR(30) NOT NULL,
+    reference VARCHAR(120),
+    status VARCHAR(20) NOT NULL DEFAULT 'aprobado',
+    notes TEXT,
+    created_by UUID REFERENCES usuarios(id),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS late_fee_history (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    meter_id UUID NOT NULL REFERENCES medidores(id) ON DELETE CASCADE,
+    source_invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+    target_invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+    amount DECIMAL(18,2) NOT NULL,
+    generated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    rule_snapshot JSONB,
+    UNIQUE (tenant_id, source_invoice_id)
+);
+
+CREATE TABLE IF NOT EXISTS operational_penalties (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    source_type VARCHAR(30) NOT NULL,
+    source_date DATE NOT NULL,
+    amount DECIMAL(18,2) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+    assignment_strategy VARCHAR(40) NOT NULL DEFAULT 'primary_meter',
+    assigned_meter_id UUID REFERENCES medidores(id),
+    assigned_invoice_id UUID REFERENCES invoices(id),
+    assigned_at TIMESTAMP,
+    notes TEXT,
+    created_by UUID REFERENCES usuarios(id),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS carried_balances (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    meter_id UUID NOT NULL REFERENCES medidores(id) ON DELETE CASCADE,
+    source_invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+    target_invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+    amount DECIMAL(18,2) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS invoice_adjustments (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    meter_id UUID NOT NULL REFERENCES medidores(id) ON DELETE CASCADE,
+    invoice_id UUID REFERENCES invoices(id) ON DELETE SET NULL,
+    adjustment_type VARCHAR(30) NOT NULL,
+    amount DECIMAL(18,2) NOT NULL,
+    reason TEXT NOT NULL,
+    source_reading_id UUID REFERENCES meter_readings(id),
+    source_invoice_id UUID REFERENCES invoices(id),
+    linked_invoice_id UUID REFERENCES invoices(id),
+    effective_cycle_id UUID REFERENCES billing_cycles(id),
+    status VARCHAR(20) NOT NULL DEFAULT 'aplicado',
+    created_by UUID REFERENCES usuarios(id),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_billing_cycles_tenant_period ON billing_cycles(tenant_id, period_code);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_meter_readings_tenant_meter_cycle ON meter_readings(tenant_id, meter_id, billing_cycle_id);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_invoices_tenant_number ON invoices(tenant_id, invoice_number);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_invoices_tenant_meter_cycle_active ON invoices(tenant_id, meter_id, billing_cycle_id) WHERE status <> 'anulado';
+CREATE INDEX IF NOT EXISTS idx_invoices_tenant_meter ON invoices(tenant_id, meter_id) WHERE status <> 'anulado';
+CREATE INDEX IF NOT EXISTS idx_invoice_lines_invoice ON invoice_lines(invoice_id);
+CREATE INDEX IF NOT EXISTS idx_payments_invoice ON payments(invoice_id);
+CREATE INDEX IF NOT EXISTS idx_late_fee_history_tenant ON late_fee_history(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_operational_penalties_tenant_status ON operational_penalties(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_carried_balances_tenant_meter ON carried_balances(tenant_id, meter_id);
+CREATE INDEX IF NOT EXISTS idx_invoice_adjustments_tenant_meter ON invoice_adjustments(tenant_id, meter_id);

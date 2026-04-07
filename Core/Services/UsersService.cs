@@ -12,14 +12,27 @@ public sealed class UsersService : IUsersService
     private const int MaxPageSize = 100;
 
     private readonly IUsuarioRepository _usuarioRepository;
+    private readonly IMedidorRepository _medidorRepository;
     private readonly IRolRepository _rolRepository;
+    private readonly ITenantConfigRepository _tenantConfigRepository;
+    private readonly IRefreshTokenRepository _refreshTokenRepository;
     private readonly IRoleMutationGuard _roleMutationGuard;
     private readonly IUnitOfWork _unitOfWork;
 
-    public UsersService(IUsuarioRepository usuarioRepository, IRolRepository rolRepository, IRoleMutationGuard roleMutationGuard, IUnitOfWork unitOfWork)
+    public UsersService(
+        IUsuarioRepository usuarioRepository,
+        IMedidorRepository medidorRepository,
+        IRolRepository rolRepository,
+        ITenantConfigRepository tenantConfigRepository,
+        IRefreshTokenRepository refreshTokenRepository,
+        IRoleMutationGuard roleMutationGuard,
+        IUnitOfWork unitOfWork)
     {
         _usuarioRepository = usuarioRepository;
+        _medidorRepository = medidorRepository;
         _rolRepository = rolRepository;
+        _tenantConfigRepository = tenantConfigRepository;
+        _refreshTokenRepository = refreshTokenRepository;
         _roleMutationGuard = roleMutationGuard;
         _unitOfWork = unitOfWork;
     }
@@ -115,22 +128,55 @@ public sealed class UsersService : IUsersService
     {
         await EnsureAdminAsync(actorUsuarioId, actorTenantId, cancellationToken);
 
-        var current = await _usuarioRepository.ObtenerPorIdYTenantIncluyendoInactivosAsync(userId, actorTenantId, cancellationToken: cancellationToken);
-        if (current is null)
-        {
-            return null;
-        }
+        var updated = await _unitOfWork.ExecuteInTransactionAsync(
+            async transaction =>
+            {
+                var current = await _usuarioRepository.ObtenerPorIdYTenantIncluyendoInactivosAsync(
+                    userId,
+                    actorTenantId,
+                    transaction,
+                    cancellationToken);
 
-        current.Nombre = request.Nombre.Trim();
-        current.Apellido = request.Apellido.Trim();
-        current.DUI = request.DUI.Trim();
-        current.Correo = request.Correo.Trim();
-        current.Telefono = request.Telefono.Trim();
-        current.Direccion = request.Direccion.Trim();
-        current.Activo = request.Activo;
-        current.FechaActualizacion = DateTime.UtcNow;
+                if (current is null)
+                {
+                    return null;
+                }
 
-        var updated = await _usuarioRepository.ActualizarDatosAsync(current, cancellationToken: cancellationToken);
+                var estadoPrevio = current.Activo;
+
+                current.Nombre = request.Nombre.Trim();
+                current.Apellido = request.Apellido.Trim();
+                current.DUI = request.DUI.Trim();
+                current.Correo = request.Correo.Trim();
+                current.Telefono = request.Telefono.Trim();
+                current.Direccion = request.Direccion.Trim();
+                current.Activo = request.Activo;
+                current.FechaActualizacion = DateTime.UtcNow;
+
+                var saved = await _usuarioRepository.ActualizarDatosAsync(current, transaction, cancellationToken);
+                if (saved is null)
+                {
+                    return null;
+                }
+
+                if (estadoPrevio != request.Activo)
+                {
+                    if (!request.Activo)
+                    {
+                        await _medidorRepository.DesactivarTodosPorUsuarioAsync(actorTenantId, userId, transaction, cancellationToken);
+                        await _refreshTokenRepository.RevocarTodosDelUsuarioAsync(userId, transaction, cancellationToken);
+                    }
+                    else
+                    {
+                        var maximoActivos = await ObtenerMaximoActivosPermitidosAsync(actorTenantId, transaction, cancellationToken);
+                        await _medidorRepository.SincronizarActivosPorUsuarioAsync(actorTenantId, userId, maximoActivos, transaction, cancellationToken);
+                    }
+                }
+
+                return saved;
+            },
+            cancellationToken);
+
         return updated is null ? null : ToDetail(updated);
     }
 
@@ -142,7 +188,34 @@ public sealed class UsersService : IUsersService
             throw new InvalidOperationException("No puedes eliminar logicamente tu propio usuario.");
         }
 
-        return await _usuarioRepository.EliminarLogicoAsync(userId, actorTenantId, cancellationToken: cancellationToken);
+        return await _unitOfWork.ExecuteInTransactionAsync(
+            async transaction =>
+            {
+                var deleted = await _usuarioRepository.EliminarLogicoAsync(userId, actorTenantId, transaction, cancellationToken);
+                if (!deleted)
+                {
+                    return false;
+                }
+
+                await _medidorRepository.DesactivarTodosPorUsuarioAsync(actorTenantId, userId, transaction, cancellationToken);
+                await _refreshTokenRepository.RevocarTodosDelUsuarioAsync(userId, transaction, cancellationToken);
+                return true;
+            },
+            cancellationToken);
+    }
+
+    private async Task<int> ObtenerMaximoActivosPermitidosAsync(
+        Guid tenantId,
+        System.Data.IDbTransaction? transaction,
+        CancellationToken cancellationToken)
+    {
+        var config = await _tenantConfigRepository.ObtenerPorTenantIdAsync(tenantId, transaction, cancellationToken);
+        if (config is null || !config.PermitirMultiplesContadores)
+        {
+            return 1;
+        }
+
+        return config.MaximoContadoresPorUsuario < 1 ? 1 : config.MaximoContadoresPorUsuario;
     }
 
     private async Task EnsureAdminAsync(Guid actorUsuarioId, Guid actorTenantId, CancellationToken cancellationToken)

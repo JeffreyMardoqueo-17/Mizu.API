@@ -266,7 +266,11 @@ public sealed class PartnerDocumentService : IPartnerDocumentService
         documento.FileSizeBytes = archivoNuevo.Length;
         documento.FechaActualizacion = DateTime.UtcNow;
 
-        await _documentRepository.ActualizarAsync(documento, cancellationToken: cancellationToken);
+        var actualizado = await _documentRepository.ActualizarAsync(documento, cancellationToken: cancellationToken);
+        if (!actualizado)
+        {
+            throw new InvalidOperationException("Error al persistir el documento reemplazado.");
+        }
 
         var documentoActualizado = await _documentRepository.ObtenerPorIdAsync(
             documentoId,

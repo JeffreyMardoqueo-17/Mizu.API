@@ -83,7 +83,9 @@ public static class DtoMappingExtensions
             tramos,
             config.MultaRetraso,
             config.MultaNoAsistirReunion,
-            config.MultaNoAsistirTrabajo
+            config.MultaNoAsistirTrabajo,
+            config.PermitirMultiplesContadores,
+            config.MaximoContadoresPorUsuario
         );
     }
 
@@ -115,6 +117,8 @@ public static class DtoMappingExtensions
         target.MultaRetraso = source.MultaRetraso;
         target.MultaNoAsistirReunion = source.MultaNoAsistirReunion;
         target.MultaNoAsistirTrabajo = source.MultaNoAsistirTrabajo;
+        target.PermitirMultiplesContadores = source.PermitirMultiplesContadores;
+        target.MaximoContadoresPorUsuario = source.MaximoContadoresPorUsuario < 1 ? 1 : source.MaximoContadoresPorUsuario;
     }
 
     private static IReadOnlyList<ConsumoTramoDto> ParseTramosOrDefault(TenantConfig config)

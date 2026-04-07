@@ -20,5 +20,7 @@ namespace Muzu.Api.Core.Models
         public decimal MultaRetraso { get; set; } = 2;
         public decimal MultaNoAsistirReunion { get; set; } = 5;
         public decimal MultaNoAsistirTrabajo { get; set; } = 10;
+        public bool PermitirMultiplesContadores { get; set; }
+        public int MaximoContadoresPorUsuario { get; set; } = 1;
     }
 }

@@ -17,6 +17,7 @@ public sealed class UsuarioRepository : RepositoryBase, IUsuarioRepository
                                             u.telefono,
                                             u.direccion,
                                             u.password_hash,
+                                            u.niu,
                                             COALESCE(rol.nombre, COALESCE(NULLIF(u.rol, ''), 'Socio')) AS rol,
                                               u.activo,
                                               u.eliminado,
@@ -46,8 +47,28 @@ public sealed class UsuarioRepository : RepositoryBase, IUsuarioRepository
     public Task<Usuario> CrearUsuarioAsync(Usuario usuario, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
     {
         const string sql = """
-                           INSERT INTO usuarios (id, tenant_id, nombre, apellido, dui, correo, telefono, direccion, password_hash, rol, activo, eliminado, must_change_password, fecha_creacion, fecha_actualizacion, temp_password_generated_at, temp_password_viewed_at)
-                           VALUES (@Id, @TenantId, @Nombre, @Apellido, @DUI, @Correo, @Telefono, @Direccion, @PasswordHash, @Rol, @Activo, @Eliminado, @MustChangePassword, @FechaCreacion, @FechaActualizacion, @TempPasswordGeneratedAt, @TempPasswordViewedAt)
+                           INSERT INTO usuarios (id, tenant_id, nombre, apellido, dui, correo, telefono, direccion, password_hash, niu, rol, activo, eliminado, must_change_password, fecha_creacion, fecha_actualizacion, temp_password_generated_at, temp_password_viewed_at)
+                           VALUES (
+                               @Id,
+                               @TenantId,
+                               @Nombre,
+                               @Apellido,
+                               @DUI,
+                               @Correo,
+                               @Telefono,
+                               @Direccion,
+                               @PasswordHash,
+                               COALESCE(@Niu, (SELECT COALESCE(MAX(u2.niu), 0) + 1 FROM usuarios u2 WHERE u2.tenant_id = @TenantId)),
+                               @Rol,
+                               @Activo,
+                               @Eliminado,
+                               @MustChangePassword,
+                               @FechaCreacion,
+                               @FechaActualizacion,
+                               @TempPasswordGeneratedAt,
+                               @TempPasswordViewedAt
+                           )
+                           RETURNING niu
                            """;
 
         return WithConnectionAsync(
@@ -55,7 +76,7 @@ public sealed class UsuarioRepository : RepositoryBase, IUsuarioRepository
             async connection =>
             {
                 var command = new CommandDefinition(sql, usuario, transaction, cancellationToken: cancellationToken);
-                await connection.ExecuteAsync(command);
+                usuario.Niu = await connection.ExecuteScalarAsync<long>(command);
                 return usuario;
             });
     }

@@ -185,6 +185,8 @@ public sealed class AuthService : IAuthService
             MultaRetraso = initial?.MultaRetraso ?? 2,
             MultaNoAsistirReunion = initial?.MultaNoAsistirReunion ?? 5,
             MultaNoAsistirTrabajo = initial?.MultaNoAsistirTrabajo ?? 10,
+            PermitirMultiplesContadores = initial?.PermitirMultiplesContadores ?? false,
+            MaximoContadoresPorUsuario = Math.Max(1, initial?.MaximoContadoresPorUsuario ?? 1),
         };
 
         var tramos = NormalizeOrDefaultTramos(initial?.TramosConsumo, config.LimiteConsumoFijo);

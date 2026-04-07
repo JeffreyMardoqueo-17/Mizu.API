@@ -141,7 +141,11 @@ public sealed class PartnerDocumentRepository : RepositoryBase, IPartnerDocument
         const string sql = """
             UPDATE partner_documents
             SET 
+                document_url = @DocumentUrl,
+                cloudinary_public_id = @CloudinaryPublicId,
                 document_type = @DocumentType,
+                file_name = @FileName,
+                file_size_bytes = @FileSizeBytes,
                 display_order = @DisplayOrder,
                 activo = @Activo,
                 fecha_actualizacion = @FechaActualizacion

@@ -25,7 +25,9 @@ public sealed record TenantConfigResponseDto(
     IReadOnlyList<ConsumoTramoDto> TramosConsumo,
     decimal MultaRetraso,
     decimal MultaNoAsistirReunion,
-    decimal MultaNoAsistirTrabajo
+    decimal MultaNoAsistirTrabajo,
+    bool PermitirMultiplesContadores,
+    int MaximoContadoresPorUsuario
 );
 
 public sealed record UpdateTenantConfigDto(
@@ -42,5 +44,7 @@ public sealed record UpdateTenantConfigDto(
     [param: Required, MinLength(1)] IReadOnlyList<ConsumoTramoDto> TramosConsumo,
     [param: Range(typeof(decimal), "0", "999999999")] decimal MultaRetraso,
     [param: Range(typeof(decimal), "0", "999999999")] decimal MultaNoAsistirReunion,
-    [param: Range(typeof(decimal), "0", "999999999")] decimal MultaNoAsistirTrabajo
+    [param: Range(typeof(decimal), "0", "999999999")] decimal MultaNoAsistirTrabajo,
+    bool PermitirMultiplesContadores,
+    [param: Range(1, 100)] int MaximoContadoresPorUsuario
 );

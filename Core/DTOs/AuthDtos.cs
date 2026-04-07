@@ -35,7 +35,9 @@ public sealed record InitialTenantConfigDto(
     IReadOnlyList<ConsumoTramoDto>? TramosConsumo,
     [param: Range(typeof(decimal), "0", "999999999")] decimal? MultaRetraso,
     [param: Range(typeof(decimal), "0", "999999999")] decimal? MultaNoAsistirReunion,
-    [param: Range(typeof(decimal), "0", "999999999")] decimal? MultaNoAsistirTrabajo
+    [param: Range(typeof(decimal), "0", "999999999")] decimal? MultaNoAsistirTrabajo,
+    bool? PermitirMultiplesContadores,
+    [param: Range(1, 100)] int? MaximoContadoresPorUsuario
 );
 
 public sealed record RefreshTokenRequestDto(
