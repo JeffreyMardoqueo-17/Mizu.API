@@ -21,6 +21,22 @@ public sealed class MedidorRepository : RepositoryBase, IMedidorRepository
         WHERE eliminado = FALSE
         """;
 
+    private const string SelectTransferenciaSql = """
+        SELECT
+            id,
+            tenant_id as "TenantId",
+            medidor_id as "MedidorId",
+            usuario_origen_id as "UsuarioOrigenId",
+            usuario_destino_id as "UsuarioDestinoId",
+            tipo_movimiento as "TipoMovimiento",
+            motivo,
+            observaciones,
+            referencia_documento as "ReferenciaDocumento",
+            actor_usuario_id as "ActorUsuarioId",
+            fecha_transferencia as "FechaTransferencia"
+        FROM medidor_transferencias
+        """;
+
     public MedidorRepository(IDbConnectionFactory connectionFactory) : base(connectionFactory)
     {
     }
@@ -321,6 +337,121 @@ public sealed class MedidorRepository : RepositoryBase, IMedidorRepository
                     cancellationToken: cancellationToken);
 
                 return await connection.QueryFirstOrDefaultAsync<Medidor>(command);
+            });
+    }
+
+    public Task<Medidor?> TransferirTitularidadAsync(
+        Guid tenantId,
+        Guid medidorId,
+        Guid nuevoUsuarioId,
+        IDbTransaction? transaction = null,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            UPDATE medidores
+            SET usuario_id = @NuevoUsuarioId,
+                fecha_actualizacion = @FechaActualizacion
+            WHERE id = @MedidorId
+              AND tenant_id = @TenantId
+              AND eliminado = FALSE
+            RETURNING
+                id,
+                tenant_id as "TenantId",
+                usuario_id as "UsuarioId",
+                numero_medidor as "NumeroMedidor",
+                activo,
+                fecha_creacion as "FechaCreacion",
+                fecha_actualizacion as "FechaActualizacion",
+                eliminado;
+            """;
+
+        return WithConnectionAsync(
+            transaction,
+            async connection =>
+            {
+                var command = new CommandDefinition(
+                    sql,
+                    new
+                    {
+                        TenantId = tenantId,
+                        MedidorId = medidorId,
+                        NuevoUsuarioId = nuevoUsuarioId,
+                        FechaActualizacion = DateTime.UtcNow
+                    },
+                    transaction,
+                    cancellationToken: cancellationToken);
+
+                return await connection.QueryFirstOrDefaultAsync<Medidor>(command);
+            });
+    }
+
+    public Task RegistrarTransferenciaAsync(
+        MedidorTransferencia transferencia,
+        IDbTransaction? transaction = null,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            INSERT INTO medidor_transferencias (
+                id,
+                tenant_id,
+                medidor_id,
+                usuario_origen_id,
+                usuario_destino_id,
+                tipo_movimiento,
+                motivo,
+                observaciones,
+                referencia_documento,
+                actor_usuario_id,
+                fecha_transferencia
+            ) VALUES (
+                @Id,
+                @TenantId,
+                @MedidorId,
+                @UsuarioOrigenId,
+                @UsuarioDestinoId,
+                @TipoMovimiento,
+                @Motivo,
+                @Observaciones,
+                @ReferenciaDocumento,
+                @ActorUsuarioId,
+                @FechaTransferencia
+            );
+            """;
+
+        return WithConnectionAsync(
+            transaction,
+            async connection =>
+            {
+                var command = new CommandDefinition(sql, transferencia, transaction, cancellationToken: cancellationToken);
+                await connection.ExecuteAsync(command);
+                return 0;
+            });
+    }
+
+    public Task<IReadOnlyList<MedidorTransferencia>> ObtenerHistorialTransferenciasAsync(
+        Guid tenantId,
+        Guid medidorId,
+        IDbTransaction? transaction = null,
+        CancellationToken cancellationToken = default)
+    {
+        var sql = SelectTransferenciaSql + """
+            WHERE tenant_id = @TenantId
+              AND medidor_id = @MedidorId
+            ORDER BY fecha_transferencia DESC;
+            """;
+
+        return WithConnectionAsync(
+            transaction,
+            async connection =>
+            {
+                var command = new CommandDefinition(
+                    sql,
+                    new { TenantId = tenantId, MedidorId = medidorId },
+                    transaction,
+                    cancellationToken: cancellationToken);
+
+                var rows = await connection.QueryAsync<MedidorTransferencia>(command);
+                return (IReadOnlyList<MedidorTransferencia>)rows.ToList();
             });
     }
 

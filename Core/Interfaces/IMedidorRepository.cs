@@ -58,6 +58,24 @@ public interface IMedidorRepository
         IDbTransaction? transaction = null,
         CancellationToken cancellationToken = default);
 
+    Task<Medidor?> TransferirTitularidadAsync(
+        Guid tenantId,
+        Guid medidorId,
+        Guid nuevoUsuarioId,
+        IDbTransaction? transaction = null,
+        CancellationToken cancellationToken = default);
+
+    Task RegistrarTransferenciaAsync(
+        MedidorTransferencia transferencia,
+        IDbTransaction? transaction = null,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<MedidorTransferencia>> ObtenerHistorialTransferenciasAsync(
+        Guid tenantId,
+        Guid medidorId,
+        IDbTransaction? transaction = null,
+        CancellationToken cancellationToken = default);
+
     Task<int> DesactivarTodosPorUsuarioAsync(
         Guid tenantId,
         Guid usuarioId,

@@ -29,7 +29,7 @@ WORKDIR /app
 COPY --from=publish /app/publish .
 
 # Variables de entorno para configuración en runtime
-# NOTA: URL__Cloudinary debe pasarse en tiempo de ejecución o en docker-compose.yml
+# NOTA: URL__Cloudinary debe pasarse en tiempo de ejecución o en compose.yml
 # Ejemplo en compose: environment: URL__Cloudinary=cloudinary://API_KEY:API_SECRET@CLOUD_NAME
 ENV DOTNET_RUNNING_IN_CONTAINER=true
 

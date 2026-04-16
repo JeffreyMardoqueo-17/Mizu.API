@@ -27,9 +27,8 @@ public sealed class UnitOfWork : IUnitOfWork
     {
         using var connection = _connectionFactory.CreateConnection();
         if (connection.State != ConnectionState.Open)
-        {
             connection.Open();
-        }
+        
 
         using var transaction = connection.BeginTransaction();
 

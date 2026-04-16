@@ -22,6 +22,7 @@ public static class DependencyInjectionExtensions
         services.AddScoped<IPartnerDocumentRepository, PartnerDocumentRepository>();
         services.AddScoped<IMedidorRepository, MedidorRepository>();
         services.AddScoped<IBillingRepository, BillingRepository>();
+        services.AddScoped<IDashboardRepository, DashboardRepository>();
 
         return services;
     }
@@ -42,6 +43,7 @@ public static class DependencyInjectionExtensions
         services.AddScoped<IPartnerDocumentService, PartnerDocumentService>();
         services.AddScoped<IMedidorService, MedidorService>();
         services.AddScoped<IBillingService, BillingService>();
+        services.AddScoped<IDashboardService, DashboardService>();
 
         return services;
     }

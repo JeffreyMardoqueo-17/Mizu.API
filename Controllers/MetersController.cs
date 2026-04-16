@@ -139,6 +139,67 @@ public sealed class MetersController : ControllerBase
         }
     }
 
+    [HttpPost("{medidorId:guid}/transfer")]
+    public async Task<IActionResult> Transfer(
+        [FromRoute] Guid medidorId,
+        [FromBody] MeterTransferRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        if (!TryGetAuthContext(out var actorUsuarioId, out var actorTenantId))
+        {
+            return Unauthorized();
+        }
+
+        try
+        {
+            var result = await _medidorService.TransferirAsync(actorUsuarioId, actorTenantId, medidorId, request, cancellationToken);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Error de negocio",
+                Detail = ex.Message,
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+    }
+
+    [HttpGet("{medidorId:guid}/transfers")]
+    public async Task<IActionResult> GetTransfers(
+        [FromRoute] Guid medidorId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!TryGetAuthContext(out var actorUsuarioId, out var actorTenantId))
+        {
+            return Unauthorized();
+        }
+
+        try
+        {
+            var result = await _medidorService.ObtenerHistorialTransferenciasAsync(actorUsuarioId, actorTenantId, medidorId, cancellationToken);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new ProblemDetails
+            {
+                Title = "No encontrado",
+                Detail = ex.Message,
+                Status = StatusCodes.Status404NotFound
+            });
+        }
+    }
+
     [HttpGet("active-conflicts")]
     public async Task<IActionResult> GetActiveConflicts(
         CancellationToken cancellationToken = default)

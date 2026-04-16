@@ -48,6 +48,51 @@ public sealed record MeterStatusResponseDto(
     string Message
 );
 
+public sealed record MeterTransferNuevoUsuarioDto(
+    string Nombre,
+    string Apellido,
+    string DUI,
+    string Correo,
+    string Telefono,
+    string Direccion
+);
+
+public sealed record MeterTransferRequestDto(
+    Guid? DestinoUsuarioId,
+    MeterTransferNuevoUsuarioDto? NuevoUsuario,
+    string TipoMovimiento,
+    string Motivo,
+    string? Observaciones,
+    string? ReferenciaDocumento
+);
+
+public sealed record MeterTransferItemDto(
+    Guid Id,
+    Guid MedidorId,
+    Guid UsuarioOrigenId,
+    Guid UsuarioDestinoId,
+    string TipoMovimiento,
+    string Motivo,
+    string? Observaciones,
+    string? ReferenciaDocumento,
+    Guid? ActorUsuarioId,
+    DateTime FechaTransferencia
+);
+
+public sealed record MeterTransferHistoryResponseDto(
+    Guid MedidorId,
+    IReadOnlyList<MeterTransferItemDto> Items,
+    int Total
+);
+
+public sealed record MeterTransferResponseDto(
+    MeterDto Meter,
+    MeterTransferItemDto Transferencia,
+    Guid UsuarioDestinoId,
+    bool UsuarioOrigenDesactivado,
+    string Message
+);
+
 public sealed record MeterRuleConflictItemDto(
     Guid UsuarioId,
     string Nombre,

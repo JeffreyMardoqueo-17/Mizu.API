@@ -29,6 +29,19 @@ public interface IMedidorService
         MeterStatusUpdateRequestDto request,
         CancellationToken cancellationToken = default);
 
+    Task<MeterTransferResponseDto> TransferirAsync(
+        Guid actorUsuarioId,
+        Guid actorTenantId,
+        Guid medidorId,
+        MeterTransferRequestDto request,
+        CancellationToken cancellationToken = default);
+
+    Task<MeterTransferHistoryResponseDto> ObtenerHistorialTransferenciasAsync(
+        Guid actorUsuarioId,
+        Guid actorTenantId,
+        Guid medidorId,
+        CancellationToken cancellationToken = default);
+
     Task<MeterRuleConflictReportDto> ObtenerReporteConflictosActivosAsync(
         Guid actorUsuarioId,
         Guid actorTenantId,

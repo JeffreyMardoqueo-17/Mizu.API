@@ -16,6 +16,21 @@ public class Medidor
     public bool Eliminado { get; set; }
 }
 
+public sealed class MedidorTransferencia
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid MedidorId { get; set; }
+    public Guid UsuarioOrigenId { get; set; }
+    public Guid UsuarioDestinoId { get; set; }
+    public string TipoMovimiento { get; set; } = string.Empty;
+    public string Motivo { get; set; } = string.Empty;
+    public string? Observaciones { get; set; }
+    public string? ReferenciaDocumento { get; set; }
+    public Guid? ActorUsuarioId { get; set; }
+    public DateTime FechaTransferencia { get; set; } = DateTime.UtcNow;
+}
+
 public sealed class MeterRuleConflictRow
 {
     public Guid UsuarioId { get; set; }

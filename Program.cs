@@ -87,10 +87,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                     if (string.IsNullOrWhiteSpace(context.Token)
                         && context.Request.Cookies.TryGetValue("muzu_token", out var cookieToken)
                         && !string.IsNullOrWhiteSpace(cookieToken))
-                    {
                         context.Token = cookieToken;
-                    }
-
                     return Task.CompletedTask;
                 },
                 OnTokenValidated = async context =>
@@ -104,9 +101,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
                     var role = principal.FindFirstValue(ClaimTypes.Role) ?? string.Empty;
                     if (SystemRoles.EsAdministrador(role) || !SystemRoles.EsRolDeDirectiva(role))
-                    {
                         return;
-                    }
 
                     var userIdRaw = principal.FindFirstValue(ClaimTypes.NameIdentifier);
                     var tenantIdRaw = principal.FindFirstValue("tenant_id");
@@ -121,9 +116,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                     var accessAllowed = await boardRepository.IsUserInActiveBoardAsync(tenantId, userId, cancellationToken: context.HttpContext.RequestAborted);
 
                     if (!accessAllowed)
-                    {
                         context.Fail("DIRECTIVA_NOT_ACTIVE");
-                    }
+                    
                 }
             };
         });
@@ -149,9 +143,8 @@ app.UseMiddleware<ExceptionLoggingMiddleware>();
 app.UseMiddleware<RequestDiagnosticsMiddleware>();
 
 if (!runningInContainer)
-{
     app.UseHttpsRedirection();
-}
+
 
 app.UseAuthentication();
 app.UseAuthorization();

@@ -378,6 +378,20 @@ CREATE TABLE IF NOT EXISTS medidores (
     eliminado BOOLEAN NOT NULL DEFAULT FALSE
 );
 
+CREATE TABLE IF NOT EXISTS medidor_transferencias (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    medidor_id UUID NOT NULL REFERENCES medidores(id) ON DELETE CASCADE,
+    usuario_origen_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
+    usuario_destino_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
+    tipo_movimiento VARCHAR(40) NOT NULL,
+    motivo TEXT NOT NULL,
+    observaciones TEXT,
+    referencia_documento VARCHAR(120),
+    actor_usuario_id UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    fecha_transferencia TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 -- Backfill: asegura al menos un medidor por usuario existente
 INSERT INTO medidores (
     id,
@@ -473,6 +487,8 @@ CREATE INDEX IF NOT EXISTS idx_partner_documents_fecha_creacion ON partner_docum
 CREATE UNIQUE INDEX IF NOT EXISTS ux_medidores_tenant_numero ON medidores(tenant_id, numero_medidor) WHERE NOT eliminado;
 CREATE INDEX IF NOT EXISTS idx_medidores_usuario ON medidores(usuario_id) WHERE NOT eliminado;
 CREATE INDEX IF NOT EXISTS idx_medidores_tenant ON medidores(tenant_id) WHERE NOT eliminado;
+CREATE INDEX IF NOT EXISTS idx_medidor_transferencias_tenant_fecha ON medidor_transferencias(tenant_id, fecha_transferencia DESC);
+CREATE INDEX IF NOT EXISTS idx_medidor_transferencias_medidor ON medidor_transferencias(medidor_id, fecha_transferencia DESC);
 
 -- Billing cycles and meter billing tables
 CREATE TABLE IF NOT EXISTS billing_cycles (

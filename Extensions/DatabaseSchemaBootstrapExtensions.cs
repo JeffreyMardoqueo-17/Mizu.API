@@ -218,6 +218,20 @@ public static class DatabaseSchemaBootstrapExtensions
                 eliminado BOOLEAN NOT NULL DEFAULT FALSE
             );
 
+            CREATE TABLE IF NOT EXISTS medidor_transferencias (
+                id UUID PRIMARY KEY,
+                tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                medidor_id UUID NOT NULL REFERENCES medidores(id) ON DELETE CASCADE,
+                usuario_origen_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
+                usuario_destino_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
+                tipo_movimiento VARCHAR(40) NOT NULL,
+                motivo TEXT NOT NULL,
+                observaciones TEXT,
+                referencia_documento VARCHAR(120),
+                actor_usuario_id UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+                fecha_transferencia TIMESTAMP NOT NULL DEFAULT NOW()
+            );
+
             CREATE INDEX IF NOT EXISTS idx_docs_tenant ON docs(tenant_id);
             CREATE INDEX IF NOT EXISTS idx_docs_usuario ON docs(usuario_id);
             CREATE INDEX IF NOT EXISTS idx_directiva_tenant ON directiva(tenant_id);
@@ -241,6 +255,8 @@ public static class DatabaseSchemaBootstrapExtensions
             CREATE UNIQUE INDEX IF NOT EXISTS ux_medidores_tenant_numero ON medidores(tenant_id, numero_medidor) WHERE eliminado = FALSE;
             CREATE INDEX IF NOT EXISTS idx_medidores_usuario ON medidores(usuario_id) WHERE eliminado = FALSE;
             CREATE INDEX IF NOT EXISTS idx_medidores_tenant ON medidores(tenant_id) WHERE eliminado = FALSE;
+            CREATE INDEX IF NOT EXISTS idx_medidor_transferencias_tenant_fecha ON medidor_transferencias(tenant_id, fecha_transferencia DESC);
+            CREATE INDEX IF NOT EXISTS idx_medidor_transferencias_medidor ON medidor_transferencias(medidor_id, fecha_transferencia DESC);
 
             CREATE TABLE IF NOT EXISTS billing_cycles (
                 id UUID PRIMARY KEY,
